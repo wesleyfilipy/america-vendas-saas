@@ -1,6 +1,8 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import { AuthProvider } from './contexts/AuthContext';
+import ProtectedRoute from './components/auth/ProtectedRoute';
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
 import Home from './pages/Home';
@@ -15,29 +17,43 @@ import ForgotPassword from './pages/ForgotPassword';
 
 function App() {
   return (
-    <Router>
-      <div className="flex flex-col min-h-screen">
-        <Navbar />
-        
-        <main className="flex-grow">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/cadastro" element={<Register />} />
-            <Route path="/buscar" element={<Search />} />
-            <Route path="/anuncio/:id" element={<ListingDetail />} />
-            <Route path="/criar-anuncio" element={<CreateListing />} />
-            <Route path="/meus-anuncios" element={<UserListings />} />
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </main>
-        
-        <Footer />
-        <Toaster position="top-right" />
-      </div>
-    </Router>
+    <AuthProvider>
+      <Router>
+        <div className="flex flex-col min-h-screen">
+          <Navbar />
+          
+          <main className="flex-grow">
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/cadastro" element={<Register />} />
+              <Route path="/buscar" element={<Search />} />
+              <Route path="/anuncio/:id" element={<ListingDetail />} />
+                          <Route path="/criar-anuncio" element={
+              <ProtectedRoute>
+                <CreateListing />
+              </ProtectedRoute>
+            } />
+            <Route path="/meus-anuncios" element={
+              <ProtectedRoute>
+                <UserListings />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin" element={
+              <ProtectedRoute>
+                <AdminDashboard />
+              </ProtectedRoute>
+            } />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </main>
+          
+          <Footer />
+          <Toaster position="top-right" />
+        </div>
+      </Router>
+    </AuthProvider>
   );
 }
 

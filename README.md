@@ -50,10 +50,18 @@ FRONTEND_URL=http://localhost:5173
 ```
 
 4. **Configure o banco de dados**
-Execute as migrações do Supabase:
-```bash
-# No painel do Supabase, execute os arquivos SQL em supabase/migrations/
+Execute as migrações do Supabase no painel do seu projeto:
+
+```sql
+-- Execute os arquivos em ordem:
+-- 1. supabase/migrations/20231120000001_create_users_table.sql
+-- 2. supabase/migrations/20231120000000_create_listings_and_payments.sql
+-- 3. supabase/migrations/20231120000002_create_images_table.sql
+-- 4. supabase/migrations/20231120000003_add_address_fields.sql
+-- 5. supabase/policies.sql
 ```
+
+**Importante**: Após executar as migrações, certifique-se de que o Row Level Security (RLS) está habilitado e as políticas estão ativas.
 
 5. **Inicie o servidor de desenvolvimento**
 ```bash

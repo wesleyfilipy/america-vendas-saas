@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowLeft } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
+import toast from 'react-hot-toast';
 
 interface RegisterFormData {
   name: string;
@@ -32,29 +34,46 @@ const Register: React.FC = () => {
     setIsLoading(true);
     
     try {
-      // Simulate registration process
       console.log('Registration attempt:', data);
       
-      // For demo purposes, accept any valid data
-      if (data.name && data.email && data.phone && data.password) {
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Redirect to login page with success message
-      navigate('/login', { 
-          state: { message: 'Conta criada com sucesso! Faça login para continuar.' }
-        });
-      } else {
+      // Real Supabase registration
+      const { data: authData, error } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+        options: {
+          data: {
+            name: data.name,
+            phone: data.phone,
+          }
+        }
+      });
+
+      if (error) {
+        console.error('Registration error:', error);
         setError('root', {
           type: 'manual',
-          message: 'Por favor, preencha todos os campos corretamente'
+          message: error.message || 'Erro ao criar conta. Tente novamente.'
+        });
+        toast.error('Erro ao criar conta. Verifique os dados e tente novamente.');
+        return;
+      }
+
+      if (authData.user) {
+        console.log('Registration successful:', authData.user);
+        toast.success('Conta criada com sucesso! Verifique seu email para confirmar.');
+        
+        // Redirect to login page
+        navigate('/login', { 
+          state: { message: 'Conta criada com sucesso! Verifique seu email para confirmar.' }
         });
       }
     } catch (error) {
+      console.error('Registration error:', error);
       setError('root', {
         type: 'manual',
         message: 'Erro ao criar conta. Tente novamente.'
       });
+      toast.error('Erro ao criar conta. Tente novamente.');
     } finally {
       setIsLoading(false);
     }

@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff, Mail, Lock, ArrowLeft } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
+import toast from 'react-hot-toast';
 
 interface LoginFormData {
   email: string;
@@ -13,6 +15,8 @@ const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = location.state?.from?.pathname || '/';
   
   const {
     register,
@@ -25,27 +29,36 @@ const Login: React.FC = () => {
     setIsLoading(true);
     
     try {
-      // Simulate login process
       console.log('Login attempt:', data);
       
-      // For demo purposes, accept any email/password
-      if (data.email && data.password) {
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Redirect to home page
-        navigate('/');
-      } else {
+      // Real Supabase authentication
+      const { data: authData, error } = await supabase.auth.signInWithPassword({
+        email: data.email,
+        password: data.password,
+      });
+
+      if (error) {
+        console.error('Login error:', error);
         setError('root', {
           type: 'manual',
-          message: 'Email ou senha incorretos'
+          message: error.message || 'Email ou senha incorretos'
         });
+        toast.error('Erro ao fazer login. Verifique suas credenciais.');
+        return;
+      }
+
+      if (authData.user) {
+        console.log('Login successful:', authData.user);
+        toast.success('Login realizado com sucesso!');
+        navigate(from, { replace: true });
       }
     } catch (error) {
+      console.error('Login error:', error);
       setError('root', {
         type: 'manual',
         message: 'Erro ao fazer login. Tente novamente.'
       });
+      toast.error('Erro ao fazer login. Tente novamente.');
     } finally {
       setIsLoading(false);
     }

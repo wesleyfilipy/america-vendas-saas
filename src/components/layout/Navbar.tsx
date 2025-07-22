@@ -1,9 +1,21 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Menu, X, Home, Search, Plus } from 'lucide-react';
+import { Menu, X, Home, Search, Plus, User, LogOut } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import toast from 'react-hot-toast';
 
 const Navbar: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+  const { user, signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      toast.success('Logout realizado com sucesso!');
+    } catch (error) {
+      toast.error('Erro ao fazer logout');
+    }
+  };
 
   return (
     <nav className="bg-white shadow-md sticky top-0 z-50">
@@ -29,12 +41,31 @@ const Navbar: React.FC = () => {
             <Link to="/criar-anuncio" className="px-3 py-2 rounded-md text-sm font-medium text-white bg-blue-700 hover:bg-blue-800 flex items-center gap-1">
               <Plus size={16} /> Anunciar
             </Link>
-            <Link to="/login" className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-blue-700 hover:bg-gray-50">
-              Entrar
-            </Link>
-            <Link to="/cadastro" className="px-3 py-2 rounded-md text-sm font-medium text-white bg-blue-700 hover:bg-blue-800">
-              Cadastrar
-            </Link>
+            
+            {user ? (
+              <>
+                <Link to="/meus-anuncios" className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-blue-700 hover:bg-gray-50 flex items-center gap-1">
+                  <User size={16} />
+                  {user.user_metadata?.name || user.email}
+                </Link>
+                <button
+                  onClick={handleSignOut}
+                  className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-red-700 hover:bg-gray-50 flex items-center gap-1"
+                >
+                  <LogOut size={16} />
+                  Sair
+                </button>
+              </>
+            ) : (
+              <>
+                <Link to="/login" className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-blue-700 hover:bg-gray-50">
+                  Entrar
+                </Link>
+                <Link to="/cadastro" className="px-3 py-2 rounded-md text-sm font-medium text-white bg-blue-700 hover:bg-blue-800">
+                  Cadastrar
+                </Link>
+              </>
+            )}
           </div>
           
           {/* Mobile menu button */}
@@ -74,20 +105,43 @@ const Navbar: React.FC = () => {
             >
               Anunciar
             </Link>
-            <Link
-              to="/login"
-              className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-blue-700 hover:bg-gray-50"
-              onClick={() => setIsMenuOpen(false)}
-            >
-              Entrar
-            </Link>
-            <Link
-              to="/cadastro"
-              className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-blue-700 hover:bg-gray-50"
-              onClick={() => setIsMenuOpen(false)}
-            >
-              Cadastrar
-            </Link>
+            {user ? (
+              <>
+                <Link
+                  to="/meus-anuncios"
+                  className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-blue-700 hover:bg-gray-50"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Meus Anúncios
+                </Link>
+                <button
+                  onClick={() => {
+                    handleSignOut();
+                    setIsMenuOpen(false);
+                  }}
+                  className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-red-700 hover:bg-gray-50"
+                >
+                  Sair
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  to="/login"
+                  className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-blue-700 hover:bg-gray-50"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Entrar
+                </Link>
+                <Link
+                  to="/cadastro"
+                  className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-blue-700 hover:bg-gray-50"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Cadastrar
+                </Link>
+              </>
+            )}
           </div>
         </div>
       )}
