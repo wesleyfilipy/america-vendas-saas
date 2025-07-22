@@ -14,6 +14,7 @@ import Search from './pages/Search';
 import UserListings from './pages/UserListings';
 import AdminDashboard from './pages/AdminDashboard';
 import ForgotPassword from './pages/ForgotPassword';
+import Payment from './pages/Payment';
 import SupabaseTest from './components/debug/SupabaseTest';
 
 function App() {
@@ -30,24 +31,29 @@ function App() {
               <Route path="/cadastro" element={<Register />} />
               <Route path="/buscar" element={<Search />} />
               <Route path="/anuncio/:id" element={<ListingDetail />} />
-                          <Route path="/criar-anuncio" element={
-              <ProtectedRoute>
-                <CreateListing />
-              </ProtectedRoute>
-            } />
-            <Route path="/meus-anuncios" element={
-              <ProtectedRoute>
-                <UserListings />
-              </ProtectedRoute>
-            } />
-            <Route path="/admin" element={
-              <ProtectedRoute>
-                <AdminDashboard />
-              </ProtectedRoute>
-            } />
-                          <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/debug" element={<SupabaseTest />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
+              <Route path="/criar-anuncio" element={
+                <ProtectedRoute>
+                  <CreateListing />
+                </ProtectedRoute>
+              } />
+              <Route path="/meus-anuncios" element={
+                <ProtectedRoute>
+                  <UserListings />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin" element={
+                <ProtectedRoute>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/payment/:listingId" element={
+                <ProtectedRoute>
+                  <Payment />
+                </ProtectedRoute>
+              } />
+              <Route path="/debug" element={<SupabaseTest />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </main>
           

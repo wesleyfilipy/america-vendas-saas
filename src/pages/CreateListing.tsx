@@ -1,212 +1,209 @@
 import React, { useState } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
-import { Upload, X, Plus, ArrowLeft } from 'lucide-react';
+import { Upload, DollarSign, Calendar, MapPin, Home, Car, Building } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 import Button from '../components/ui/Button';
+import toast from 'react-hot-toast';
 
 interface CreateListingFormData {
   title: string;
   description: string;
   price: number;
   category: string;
-  location: string;
-  contactPhone: string;
-  contactEmail: string;
+  city: string;
+  state: string;
+  street: string;
+  number: string;
+  zipCode: string;
+  contactInfo: string;
+  paymentType: 'free' | 'premium';
 }
 
 const CreateListing: React.FC = () => {
-  const [images, setImages] = useState<File[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [images, setImages] = useState<File[]>([]);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const {
     register,
     handleSubmit,
-    control,
+    watch,
     formState: { errors },
-    setError
+    setValue
   } = useForm<CreateListingFormData>();
+
+  const paymentType = watch('paymentType', 'free');
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
-    const validFiles = files.filter(file => 
-      file.type.startsWith('image/') && file.size <= 5 * 1024 * 1024
-    );
-    
-    if (validFiles.length + images.length > 10) {
-      alert('Máximo de 10 imagens permitido');
+    if (files.length > 5) {
+      toast.error('Máximo 5 imagens permitidas');
       return;
     }
-    
-    setImages(prev => [...prev, ...validFiles]);
+    setImages(files);
   };
 
-  const removeImage = (index: number) => {
-    setImages(prev => prev.filter((_, i) => i !== index));
+  const uploadImages = async (listingId: string): Promise<string[]> => {
+    if (images.length === 0) return [];
+
+    const uploadedUrls: string[] = [];
+    
+    for (let i = 0; i < images.length; i++) {
+      const file = images[i];
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${listingId}/${Date.now()}-${i}.${fileExt}`;
+      
+      const { data, error } = await supabase.storage
+        .from('images')
+        .upload(fileName, file);
+
+      if (error) {
+        console.error('Error uploading image:', error);
+        toast.error('Erro ao fazer upload da imagem');
+        continue;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from('images')
+        .getPublicUrl(fileName);
+
+      uploadedUrls.push(urlData.publicUrl);
+      setUploadProgress(((i + 1) / images.length) * 100);
+    }
+
+    return uploadedUrls;
   };
 
   const onSubmit = async (data: CreateListingFormData) => {
+    if (!user) {
+      toast.error('Você precisa estar logado para criar um anúncio');
+      return;
+    }
+
     setIsLoading(true);
     
     try {
-      // Simulate API call
-      console.log('Creating listing:', data);
-      console.log('Images:', images);
-      
-      // Simulate delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Redirect to success page or home
-      navigate('/', { 
-        state: { message: 'Anúncio criado com sucesso!' }
-      });
-    } catch (error) {
-      setError('root', {
-        type: 'manual',
-        message: 'Erro ao criar anúncio. Tente novamente.'
-      });
+      // Calcular data de expiração
+      const expiresAt = new Date();
+      if (data.paymentType === 'free') {
+        expiresAt.setDate(expiresAt.getDate() + 1); // 1 dia grátis
+      } else {
+        expiresAt.setFullYear(expiresAt.getFullYear() + 10); // 10 anos para premium
+      }
+
+      // Criar o anúncio
+      const { data: listingData, error: listingError } = await supabase
+        .from('listings')
+        .insert({
+          title: data.title,
+          description: data.description,
+          price: data.price,
+          category: data.category,
+          city: data.city,
+          state: data.state,
+          street: data.street,
+          number: data.number,
+          zip_code: data.zipCode,
+          contact_info: data.contactInfo,
+          user_id: user.id,
+          expires_at: expiresAt.toISOString(),
+          status: data.paymentType === 'free' ? 'published' : 'pending_payment',
+          is_paid: data.paymentType === 'premium'
+        })
+        .select()
+        .single();
+
+      if (listingError) {
+        throw listingError;
+      }
+
+      // Upload das imagens
+      const imageUrls = await uploadImages(listingData.id);
+
+      // Atualizar anúncio com as imagens
+      if (imageUrls.length > 0) {
+        await supabase
+          .from('listings')
+          .update({ images: imageUrls })
+          .eq('id', listingData.id);
+      }
+
+      toast.success('Anúncio criado com sucesso!');
+
+      // Redirecionar baseado no tipo de pagamento
+      if (data.paymentType === 'premium') {
+        navigate(`/payment/${listingData.id}`);
+      } else {
+        navigate('/meus-anuncios');
+      }
+
+    } catch (error: any) {
+      console.error('Error creating listing:', error);
+      toast.error('Erro ao criar anúncio. Tente novamente.');
     } finally {
       setIsLoading(false);
+      setUploadProgress(0);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => navigate('/')}
-              className="flex items-center text-blue-700 hover:text-blue-800"
-            >
-              <ArrowLeft size={20} className="mr-2" />
-              Voltar
-            </button>
-            <h1 className="text-xl font-semibold text-gray-900">Criar Anúncio</h1>
-            <div className="w-20"></div> {/* Spacer for centering */}
-          </div>
-        </div>
-      </div>
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h1 className="text-3xl font-bold text-gray-900 mb-6">Criar Novo Anúncio</h1>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-white rounded-lg shadow-sm p-6">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            {/* Basic Information */}
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Informações Básicas</h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Title */}
-                <div className="md:col-span-2">
-                  <label htmlFor="title" className="block text-sm font-medium text-gray-700">
-                    Título do anúncio *
-                  </label>
-                  <input
-                    type="text"
-                    id="title"
-                    {...register('title', {
-                      required: 'Título é obrigatório',
-                      minLength: {
-                        value: 10,
-                        message: 'Título deve ter pelo menos 10 caracteres'
-                      }
-                    })}
-                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Ex: Casa com 3 quartos em condomínio fechado"
-                  />
-                  {errors.title && (
-                    <p className="mt-1 text-sm text-red-600">{errors.title.message}</p>
-                  )}
-                </div>
+            {/* Informações Básicas */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Título do Anúncio *
+                </label>
+                <input
+                  type="text"
+                  {...register('title', { required: 'Título é obrigatório' })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Ex: Casa com 3 quartos"
+                />
+                {errors.title && (
+                  <p className="mt-1 text-sm text-red-600">{errors.title.message}</p>
+                )}
+              </div>
 
-                {/* Category */}
-                <div>
-                  <label htmlFor="category" className="block text-sm font-medium text-gray-700">
-                    Categoria *
-                  </label>
-                  <Controller
-                    name="category"
-                    control={control}
-                    rules={{ required: 'Categoria é obrigatória' }}
-                    render={({ field }) => (
-                      <select
-                        {...field}
-                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        <option value="">Selecione uma categoria</option>
-                        <option value="casa">Casa</option>
-                        <option value="carro">Carro</option>
-                        <option value="terreno">Terreno</option>
-                        <option value="comercio">Comércio</option>
-                      </select>
-                    )}
-                  />
-                  {errors.category && (
-                    <p className="mt-1 text-sm text-red-600">{errors.category.message}</p>
-                  )}
-                </div>
-
-                {/* Price */}
-                <div>
-                  <label htmlFor="price" className="block text-sm font-medium text-gray-700">
-                    Preço (R$) *
-                  </label>
-                  <input
-                    type="number"
-                    id="price"
-                    {...register('price', {
-                      required: 'Preço é obrigatório',
-                      min: {
-                        value: 0,
-                        message: 'Preço deve ser maior que zero'
-                      }
-                    })}
-                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="0,00"
-                  />
-                  {errors.price && (
-                    <p className="mt-1 text-sm text-red-600">{errors.price.message}</p>
-                  )}
-                </div>
-
-                {/* Location */}
-                <div className="md:col-span-2">
-                  <label htmlFor="location" className="block text-sm font-medium text-gray-700">
-                    Localização *
-                  </label>
-                  <input
-                    type="text"
-                    id="location"
-                    {...register('location', {
-                      required: 'Localização é obrigatória'
-                    })}
-                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Ex: São Paulo, SP - Jardins"
-                  />
-                  {errors.location && (
-                    <p className="mt-1 text-sm text-red-600">{errors.location.message}</p>
-                  )}
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Categoria *
+                </label>
+                <select
+                  {...register('category', { required: 'Categoria é obrigatória' })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Selecione uma categoria</option>
+                  <option value="imoveis">Imóveis</option>
+                  <option value="veiculos">Veículos</option>
+                  <option value="eletronicos">Eletrônicos</option>
+                  <option value="servicos">Serviços</option>
+                  <option value="outros">Outros</option>
+                </select>
+                {errors.category && (
+                  <p className="mt-1 text-sm text-red-600">{errors.category.message}</p>
+                )}
               </div>
             </div>
 
-            {/* Description */}
+            {/* Descrição */}
             <div>
-              <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-                Descrição detalhada *
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Descrição *
               </label>
               <textarea
-                id="description"
-                rows={6}
-                {...register('description', {
-                  required: 'Descrição é obrigatória',
-                  minLength: {
-                    value: 50,
-                    message: 'Descrição deve ter pelo menos 50 caracteres'
-                  }
-                })}
-                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                {...register('description', { required: 'Descrição é obrigatória' })}
+                rows={4}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Descreva detalhadamente o que está anunciando..."
               />
               {errors.description && (
@@ -214,132 +211,205 @@ const CreateListing: React.FC = () => {
               )}
             </div>
 
-            {/* Images */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Imagens (máximo 10)
-              </label>
-              
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
-                <div className="text-center">
-                  <Upload size={48} className="mx-auto text-gray-400 mb-4" />
-                  <p className="text-sm text-gray-600 mb-2">
-                    Arraste e solte as imagens aqui, ou clique para selecionar
-                  </p>
+            {/* Preço e Localização */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Preço (R$) *
+                </label>
+                <div className="relative">
+                  <DollarSign className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
                   <input
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                    id="image-upload"
+                    type="number"
+                    step="0.01"
+                    {...register('price', { 
+                      required: 'Preço é obrigatório',
+                      min: { value: 0, message: 'Preço deve ser maior que zero' }
+                    })}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="0,00"
                   />
-                  <label
-                    htmlFor="image-upload"
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 cursor-pointer"
-                  >
-                    <Plus size={16} className="mr-2" />
-                    Selecionar imagens
-                  </label>
                 </div>
+                {errors.price && (
+                  <p className="mt-1 text-sm text-red-600">{errors.price.message}</p>
+                )}
               </div>
 
-              {/* Image previews */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Cidade *
+                </label>
+                <input
+                  type="text"
+                  {...register('city', { required: 'Cidade é obrigatória' })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="São Paulo"
+                />
+                {errors.city && (
+                  <p className="mt-1 text-sm text-red-600">{errors.city.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Estado *
+                </label>
+                <input
+                  type="text"
+                  {...register('state', { required: 'Estado é obrigatório' })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="SP"
+                />
+                {errors.state && (
+                  <p className="mt-1 text-sm text-red-600">{errors.state.message}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Endereço */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Rua
+                </label>
+                <input
+                  type="text"
+                  {...register('street')}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Rua das Flores"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Número
+                </label>
+                <input
+                  type="text"
+                  {...register('number')}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="123"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  CEP
+                </label>
+                <input
+                  type="text"
+                  {...register('zipCode')}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="01234-567"
+                />
+              </div>
+            </div>
+
+            {/* Contato */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Informações de Contato
+              </label>
+              <input
+                type="text"
+                {...register('contactInfo')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Telefone, WhatsApp, Email..."
+              />
+            </div>
+
+            {/* Upload de Imagens */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Imagens (máximo 5)
+              </label>
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                <Upload className="mx-auto h-12 w-12 text-gray-400" />
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="mt-2 w-full"
+                />
+                <p className="mt-2 text-sm text-gray-600">
+                  Arraste as imagens aqui ou clique para selecionar
+                </p>
+              </div>
               {images.length > 0 && (
                 <div className="mt-4">
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">
-                    Imagens selecionadas ({images.length}/10)
-                  </h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                    {images.map((image, index) => (
-                      <div key={index} className="relative">
-                        <img
-                          src={URL.createObjectURL(image)}
-                          alt={`Preview ${index + 1}`}
-                          className="w-full h-24 object-cover rounded-lg"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeImage(index)}
-                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
-                        >
-                          <X size={12} />
-                        </button>
+                  <p className="text-sm text-gray-600">
+                    {images.length} imagem(ns) selecionada(s)
+                  </p>
+                  {uploadProgress > 0 && (
+                    <div className="mt-2">
+                      <div className="bg-gray-200 rounded-full h-2">
+                        <div
+                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${uploadProgress}%` }}
+                        ></div>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
 
-            {/* Contact Information */}
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Informações de Contato</h2>
+            {/* Tipo de Publicação */}
+            <div className="border-t pt-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Tipo de Publicação</h3>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label htmlFor="contactPhone" className="block text-sm font-medium text-gray-700">
-                    Telefone *
-                  </label>
-                  <input
-                    type="tel"
-                    id="contactPhone"
-                    {...register('contactPhone', {
-                      required: 'Telefone é obrigatório'
-                    })}
-                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="(11) 99999-9999"
-                  />
-                  {errors.contactPhone && (
-                    <p className="mt-1 text-sm text-red-600">{errors.contactPhone.message}</p>
-                  )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div
+                  className={`border-2 rounded-lg p-4 cursor-pointer transition-colors ${
+                    paymentType === 'free' ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+                  }`}
+                  onClick={() => setValue('paymentType', 'free')}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium text-gray-900">Publicação Grátis</h4>
+                      <p className="text-sm text-gray-600">1 dia de exposição</p>
+                    </div>
+                    <input
+                      type="radio"
+                      {...register('paymentType')}
+                      value="free"
+                      className="text-blue-600"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label htmlFor="contactEmail" className="block text-sm font-medium text-gray-700">
-                    Email *
-                  </label>
-                  <input
-                    type="email"
-                    id="contactEmail"
-                    {...register('contactEmail', {
-                      required: 'Email é obrigatório',
-                      pattern: {
-                        value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                        message: 'Email inválido'
-                      }
-                    })}
-                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="seu@email.com"
-                  />
-                  {errors.contactEmail && (
-                    <p className="mt-1 text-sm text-red-600">{errors.contactEmail.message}</p>
-                  )}
+                <div
+                  className={`border-2 rounded-lg p-4 cursor-pointer transition-colors ${
+                    paymentType === 'premium' ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+                  }`}
+                  onClick={() => setValue('paymentType', 'premium')}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium text-gray-900">Publicação Premium</h4>
+                      <p className="text-sm text-gray-600">US$ 10 - Exposição ilimitada</p>
+                    </div>
+                    <input
+                      type="radio"
+                      {...register('paymentType')}
+                      value="premium"
+                      className="text-blue-600"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Error Message */}
-            {errors.root && (
-              <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                <p className="text-sm text-red-600">{errors.root.message}</p>
-              </div>
-            )}
-
-            {/* Submit Button */}
-            <div className="flex justify-end space-x-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => navigate('/')}
-              >
-                Cancelar
-              </Button>
+            {/* Botão de Envio */}
+            <div className="flex justify-end">
               <Button
                 type="submit"
                 disabled={isLoading}
+                className="px-8 py-3"
               >
-                {isLoading ? 'Criando anúncio...' : 'Criar anúncio'}
+                {isLoading ? 'Criando Anúncio...' : 'Criar Anúncio'}
               </Button>
             </div>
           </form>

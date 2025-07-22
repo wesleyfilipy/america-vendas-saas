@@ -1,176 +1,223 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Plus, Edit, Trash2, Eye, ArrowLeft } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Plus, Eye, Edit, Trash2, Calendar, DollarSign, MapPin } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 import Button from '../components/ui/Button';
+import toast from 'react-hot-toast';
 
-interface MockListing {
+interface Listing {
   id: string;
   title: string;
   description: string;
   price: number;
-  location: string;
   category: string;
-  status: 'active' | 'pending' | 'expired';
+  city: string;
+  state: string;
+  status: string;
+  is_paid: boolean;
   created_at: string;
+  expires_at: string;
   images: string[];
 }
 
 const UserListings: React.FC = () => {
-  const [listings, setListings] = useState<MockListing[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const { user } = useAuth();
 
   useEffect(() => {
-    // Simulate API call
-    const fetchUserListings = async () => {
-      setLoading(true);
-      
-      // Simulate delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock data
-      const mockListings: MockListing[] = [
-        {
-          id: '1',
-          title: 'Casa em condomínio fechado',
-          description: 'Linda casa com 3 quartos, 2 banheiros, garagem para 2 carros',
-          price: 450000,
-          location: 'São Paulo, SP',
-          category: 'casa',
-          status: 'active',
-          created_at: '2024-01-15T10:30:00Z',
-          images: ['https://images.pexels.com/photos/106399/pexels-photo-106399.jpeg']
-        },
-        {
-          id: '2',
-          title: 'Carro usado em ótimo estado',
-          description: 'Honda Civic 2018, completo, único dono',
-          price: 85000,
-          location: 'Rio de Janeiro, RJ',
-          category: 'carro',
-          status: 'active',
-          created_at: '2024-01-14T15:20:00Z',
-          images: ['https://images.pexels.com/photos/3802510/pexels-photo-3802510.jpeg']
-        },
-        {
-          id: '3',
-          title: 'Terreno para construção',
-          description: 'Terreno de 500m², plano, com documentação em dia',
-          price: 180000,
-          location: 'Belo Horizonte, MG',
-          category: 'terreno',
-          status: 'pending',
-          created_at: '2024-01-13T09:15:00Z',
-          images: ['https://images.pexels.com/photos/323705/pexels-photo-323705.jpeg']
-        }
-      ];
-      
-      setListings(mockListings);
-      setLoading(false);
-    };
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    fetchListings();
+  }, [user, navigate]);
 
-    fetchUserListings();
-  }, []);
+  const fetchListings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('listings')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false });
 
-  const getStatusColor = (status: string) => {
+      if (error) {
+        throw error;
+      }
+
+      setListings(data || []);
+    } catch (error) {
+      console.error('Error fetching listings:', error);
+      toast.error('Erro ao carregar anúncios');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDelete = async (listingId: string) => {
+    if (!confirm('Tem certeza que deseja excluir este anúncio?')) {
+      return;
+    }
+
+    setIsDeleting(listingId);
+
+    try {
+      const { error } = await supabase
+        .from('listings')
+        .delete()
+        .eq('id', listingId);
+
+      if (error) {
+        throw error;
+      }
+
+      toast.success('Anúncio excluído com sucesso!');
+      fetchListings();
+    } catch (error) {
+      console.error('Error deleting listing:', error);
+      toast.error('Erro ao excluir anúncio');
+    } finally {
+      setIsDeleting(null);
+    }
+  };
+
+  const handleRenew = async (listingId: string) => {
+    try {
+      const { error } = await supabase
+        .from('listings')
+        .update({
+          status: 'pending_payment'
+        })
+        .eq('id', listingId);
+
+      if (error) {
+        throw error;
+      }
+
+      navigate(`/payment/${listingId}`);
+    } catch (error) {
+      console.error('Error renewing listing:', error);
+      toast.error('Erro ao renovar anúncio');
+    }
+  };
+
+  const getStatusBadge = (status: string, isPaid: boolean, expiresAt: string) => {
+    const isExpired = new Date(expiresAt) < new Date();
+    
+    if (isExpired) {
+      return <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">Expirado</span>;
+    }
+    
     switch (status) {
-      case 'active': return 'bg-green-100 text-green-800';
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'expired': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'published':
+        return <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">Ativo</span>;
+      case 'pending_payment':
+        return <span className="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">Aguardando Pagamento</span>;
+      case 'draft':
+        return <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">Rascunho</span>;
+      default:
+        return <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">{status}</span>;
     }
   };
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'active': return 'Ativo';
-      case 'pending': return 'Pendente';
-      case 'expired': return 'Expirado';
-      default: return 'Desconhecido';
+  const getDaysRemaining = (expiresAt: string) => {
+    const now = new Date();
+    const expiry = new Date(expiresAt);
+    const diffTime = expiry.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays <= 0) {
+      return 'Expirado';
+    } else if (diffDays === 1) {
+      return '1 dia restante';
+    } else {
+      return `${diffDays} dias restantes`;
     }
   };
 
-  const handleDeleteListing = (id: string) => {
-    if (window.confirm('Tem certeza que deseja excluir este anúncio?')) {
-      setListings(listings.filter(listing => listing.id !== id));
-    }
+  const getStats = () => {
+    const total = listings.length;
+    const active = listings.filter(l => l.status === 'published' && new Date(l.expires_at) > new Date()).length;
+    const pending = listings.filter(l => l.status === 'pending_payment').length;
+    const expired = listings.filter(l => new Date(l.expires_at) <= new Date()).length;
+
+    return { total, active, pending, expired };
   };
 
-  if (loading) {
+  const stats = getStats();
+
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-700 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Carregando seus anúncios...</p>
-        </div>
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-700"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <Link to="/" className="flex items-center text-blue-700 hover:text-blue-800">
-              <ArrowLeft size={20} className="mr-2" />
-              Voltar ao início
-            </Link>
-            <h1 className="text-xl font-semibold text-gray-900">Meus Anúncios</h1>
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-3xl font-bold text-gray-900">Meus Anúncios</h1>
             <Link to="/criar-anuncio">
-              <Button className="flex items-center">
-                <Plus size={16} className="mr-2" />
+              <Button className="flex items-center gap-2">
+                <Plus size={20} />
                 Novo Anúncio
               </Button>
             </Link>
           </div>
-        </div>
-      </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats */}
-        <div className="mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white rounded-lg shadow-sm p-6">
+          {/* Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="bg-white rounded-lg shadow p-4">
               <div className="flex items-center">
                 <div className="p-2 bg-blue-100 rounded-lg">
-                  <span className="text-blue-600 font-semibold">{listings.length}</span>
+                  <Calendar className="h-6 w-6 text-blue-600" />
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Total de Anúncios</p>
-                  <p className="text-2xl font-bold text-gray-900">{listings.length}</p>
+                  <p className="text-sm font-medium text-gray-600">Total</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="bg-white rounded-lg shadow p-4">
               <div className="flex items-center">
                 <div className="p-2 bg-green-100 rounded-lg">
-                  <span className="text-green-600 font-semibold">
-                    {listings.filter(l => l.status === 'active').length}
-                  </span>
+                  <Eye className="h-6 w-6 text-green-600" />
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Anúncios Ativos</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {listings.filter(l => l.status === 'active').length}
-                  </p>
+                  <p className="text-sm font-medium text-gray-600">Ativos</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.active}</p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="bg-white rounded-lg shadow p-4">
               <div className="flex items-center">
                 <div className="p-2 bg-yellow-100 rounded-lg">
-                  <span className="text-yellow-600 font-semibold">
-                    {listings.filter(l => l.status === 'pending').length}
-                  </span>
+                  <DollarSign className="h-6 w-6 text-yellow-600" />
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Pendentes</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {listings.filter(l => l.status === 'pending').length}
-                  </p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.pending}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="flex items-center">
+                <div className="p-2 bg-red-100 rounded-lg">
+                  <Calendar className="h-6 w-6 text-red-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Expirados</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.expired}</p>
                 </div>
               </div>
             </div>
@@ -179,26 +226,20 @@ const UserListings: React.FC = () => {
 
         {/* Listings */}
         {listings.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="bg-white rounded-lg shadow-sm p-8">
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Você ainda não tem anúncios
-              </h3>
-              <p className="text-gray-500 mb-6">
-                Comece criando seu primeiro anúncio para vender ou alugar.
-              </p>
-              <Link to="/criar-anuncio">
-                <Button>
-                  <Plus size={16} className="mr-2" />
-                  Criar Primeiro Anúncio
-                </Button>
-              </Link>
+          <div className="bg-white rounded-lg shadow p-8 text-center">
+            <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+              <Plus className="h-12 w-12 text-gray-400" />
             </div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum anúncio encontrado</h3>
+            <p className="text-gray-600 mb-6">Comece criando seu primeiro anúncio!</p>
+            <Link to="/criar-anuncio">
+              <Button>Criar Primeiro Anúncio</Button>
+            </Link>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {listings.map((listing) => (
-              <div key={listing.id} className="bg-white rounded-lg shadow-sm overflow-hidden">
+              <div key={listing.id} className="bg-white rounded-lg shadow-md overflow-hidden">
                 {/* Image */}
                 <div className="h-48 bg-gray-200 relative">
                   {listing.images && listing.images.length > 0 ? (
@@ -209,21 +250,17 @@ const UserListings: React.FC = () => {
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                      <span className="text-gray-500">Sem imagem</span>
+                      <MapPin className="h-12 w-12 text-gray-400" />
                     </div>
                   )}
-                  
-                  {/* Status badge */}
                   <div className="absolute top-2 right-2">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(listing.status)}`}>
-                      {getStatusLabel(listing.status)}
-                    </span>
+                    {getStatusBadge(listing.status, listing.is_paid, listing.expires_at)}
                   </div>
                 </div>
 
                 {/* Content */}
                 <div className="p-4">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-1">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">
                     {listing.title}
                   </h3>
                   
@@ -231,37 +268,55 @@ const UserListings: React.FC = () => {
                     {listing.description}
                   </p>
 
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-lg font-bold text-blue-700">
-                      R$ {listing.price.toLocaleString()}
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-lg font-bold text-blue-600">
+                      R$ {listing.price.toLocaleString('pt-BR')}
                     </span>
-                    
-                    <span className="text-sm text-gray-500">
-                      {new Date(listing.created_at).toLocaleDateString('pt-BR')}
+                    <span className="text-sm text-gray-500 capitalize">
+                      {listing.category}
                     </span>
+                  </div>
+
+                  <div className="text-sm text-gray-500 mb-4">
+                    <p>{listing.city}, {listing.state}</p>
+                    <p>{getDaysRemaining(listing.expires_at)}</p>
                   </div>
 
                   {/* Actions */}
                   <div className="flex space-x-2">
                     <Link
                       to={`/anuncio/${listing.id}`}
-                      className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md"
+                      className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-blue-600 hover:text-blue-800"
                     >
                       <Eye size={16} className="mr-1" />
                       Ver
                     </Link>
-                    
-                    <button className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-green-600 hover:text-green-800 hover:bg-green-50 rounded-md">
+
+                    <Link
+                      to={`/editar-anuncio/${listing.id}`}
+                      className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-800"
+                    >
                       <Edit size={16} className="mr-1" />
                       Editar
-                    </button>
-                    
+                    </Link>
+
+                    {listing.status === 'published' && !listing.is_paid && (
+                      <button
+                        onClick={() => handleRenew(listing.id)}
+                        className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-green-600 hover:text-green-800"
+                      >
+                        <DollarSign size={16} className="mr-1" />
+                        Renovar
+                      </button>
+                    )}
+
                     <button
-                      onClick={() => handleDeleteListing(listing.id)}
-                      className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md"
+                      onClick={() => handleDelete(listing.id)}
+                      disabled={isDeleting === listing.id}
+                      className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-red-600 hover:text-red-800 disabled:opacity-50"
                     >
                       <Trash2 size={16} className="mr-1" />
-                      Excluir
+                      {isDeleting === listing.id ? 'Excluindo...' : 'Excluir'}
                     </button>
                   </div>
                 </div>
@@ -269,16 +324,6 @@ const UserListings: React.FC = () => {
             ))}
           </div>
         )}
-
-        {/* Demo Notice */}
-        <div className="mt-8">
-          <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-            <h3 className="text-sm font-medium text-blue-800 mb-2">Demonstração:</h3>
-            <p className="text-sm text-blue-700">
-              Esta é uma página de demonstração. Os dados são simulados para fins de apresentação.
-            </p>
-          </div>
-        </div>
       </div>
     </div>
   );
