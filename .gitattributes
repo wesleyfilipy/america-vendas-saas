@@ -1,0 +1,58 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# TypeScript
+*.ts text
+*.tsx text
+
+# JavaScript
+*.js text
+*.jsx text
+
+# JSON
+*.json text
+
+# CSS
+*.css text
+*.scss text
+*.sass text
+
+# HTML
+*.html text
+
+# Markdown
+*.md text
+
+# YAML
+*.yml text
+*.yaml text
+
+# Config files
+*.config.js text
+*.config.ts text
+
+# Package files
+package.json text
+package-lock.json text
+
+# Documentation
+README.md text
+CHANGELOG.md text
+LICENSE text
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg text
+
+# Archives
+*.zip binary
+*.tar.gz binary
+*.rar binary
+
+# OS generated files
+.DS_Store binary
+Thumbs.db binary 
