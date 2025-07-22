@@ -14,6 +14,7 @@ import Search from './pages/Search';
 import UserListings from './pages/UserListings';
 import AdminDashboard from './pages/AdminDashboard';
 import ForgotPassword from './pages/ForgotPassword';
+import SupabaseTest from './components/debug/SupabaseTest';
 
 function App() {
   return (
@@ -44,8 +45,9 @@ function App() {
                 <AdminDashboard />
               </ProtectedRoute>
             } />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
+                          <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/debug" element={<SupabaseTest />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </main>
           
