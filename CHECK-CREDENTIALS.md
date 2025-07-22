@@ -115,6 +115,70 @@ npm run dev
 
 🎯 **Problema Identificado e Solução Criada!**
 
+## 🚨 **Diagnóstico do Erro 409:**
+
+O erro 409 (Conflict) indica que há um conflito na inserção de dados. Baseado nos logs, o problema mais provável é que **o usuário não existe na tabela `users`** ou há um problema com as políticas de segurança.
+
+## ✅ **Solução Completa Criada:**
+
+### **1. Script de Diagnóstico:**
+- ✅ `supabase/diagnose-409-error.sql` - Identifica o problema específico
+
+### **2. Script de Correção:**
+- ✅ `supabase/fix-users-table.sql` - Corrige problemas na tabela users
+
+### **3. Guia de Solução:**
+- ✅ `SOLUCAO-ERRO-409.md` - Instruções detalhadas
+
+## 🎯 **Passos para Resolver:**
+
+### **1. Execute o Script de Diagnóstico:**
+```sql
+-- Execute no SQL Editor do Supabase
+-- Arquivo: supabase/diagnose-409-error.sql
+```
+
+### **2. Execute o Script de Correção:**
+```sql
+-- Execute no SQL Editor do Supabase
+-- Arquivo: supabase/fix-users-table.sql
+```
+
+### **3. Verifique se o Usuário Existe:**
+```sql
+SELECT id, email, name, phone 
+FROM public.users 
+WHERE email = 'seu-email@exemplo.com';
+```
+
+## 🔍 **Causas Mais Comuns do Erro 409:**
+
+1. **Usuário não existe na tabela `users`** ← Mais provável
+2. **Política de segurança bloqueando a inserção**
+3. **Restrição de chave única violada**
+4. **Dados inválidos sendo enviados**
+
+## 🎯 **Teste Após Correção:**
+
+1. **Faça logout e login novamente**
+2. **Tente criar um anúncio simples**
+3. **Verifique se não há mais erro 409**
+
+## 📞 **Se o Problema Persistir:**
+
+Execute este comando para verificar se seu usuário está na tabela:
+
+```sql
+-- Verificar se você existe na tabela users
+SELECT COUNT(*) as user_exists
+FROM public.users 
+WHERE id = auth.uid();
+```
+
+**Execute os scripts na ordem e teste novamente!** 🚀
+
+O erro 409 é geralmente causado por problemas na tabela `users` ou políticas de segurança. Os scripts que criei vão resolver isso automaticamente!
+
 ##  **Erro 400 na Criação de Anúncios:**
 
 O erro está na estrutura da tabela `listings` no Supabase. A tabela não tem todos os campos necessários ou as políticas de segurança não estão configuradas corretamente.
