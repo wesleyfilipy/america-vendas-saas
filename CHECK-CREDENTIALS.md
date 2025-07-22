@@ -112,3 +112,71 @@ npm run dev
 3. **Verifique o status:**
    - Vá em **Settings > General**
    - Verifique se o projeto está ativo 
+
+🎯 **Problema Identificado e Solução Criada!**
+
+##  **Erro 400 na Criação de Anúncios:**
+
+O erro está na estrutura da tabela `listings` no Supabase. A tabela não tem todos os campos necessários ou as políticas de segurança não estão configuradas corretamente.
+
+## ✅ **Solução Criada:**
+
+### 1. **Script SQL para Corrigir a Tabela:**
+
+Criei o arquivo `supabase/fix-listings-table.sql` que você deve executar no Supabase:
+
+**Como executar:**
+1. Acesse o [Dashboard do Supabase](https://supabase.com/dashboard)
+2. Vá para o seu projeto
+3. Clique em **SQL Editor**
+4. Cole e execute o script do arquivo `supabase/fix-listings-table.sql`
+
+### 2. **Código Melhorado:**
+
+Corrigi o código para:
+- ✅ Lidar melhor com campos opcionais
+- ✅ Melhor tratamento de erros
+- ✅ Logs mais detalhados
+- ✅ Validação de dados
+
+### 3. **Guia de Correção:**
+
+Criei o arquivo `FIX-LISTINGS-ERROR.md` com instruções detalhadas.
+
+## 🔧 **Passos para Corrigir:**
+
+### **1. Execute o Script SQL:**
+```sql
+-- Execute este script no SQL Editor do Supabase
+-- O script está no arquivo: supabase/fix-listings-table.sql
+```
+
+### **2. Verifique a Estrutura:**
+O script vai:
+- ✅ Criar/atualizar a tabela `listings`
+- ✅ Adicionar campos faltantes
+- ✅ Configurar políticas de segurança
+- ✅ Criar índices para performance
+
+### **3. Teste Novamente:**
+Após executar o script:
+1. Tente criar um anúncio
+2. Verifique se não há mais erro 400
+3. Confirme se aparece em "Meus Anúncios"
+
+## 🎯 **Campos Necessários:**
+
+A tabela deve ter:
+- ✅ `title`, `description`, `price` (obrigatórios)
+- ✅ `user_id`, `category`, `expires_at` (obrigatórios)
+- ✅ `city`, `state`, `street`, `number` (opcionais)
+- ✅ `status`, `is_paid`, `images` (sistema)
+
+## 📞 **Se o Problema Persistir:**
+
+1. Verifique os logs do Supabase
+2. Confirme se todas as colunas foram criadas
+3. Teste com um usuário recém-criado
+4. Verifique as políticas de segurança
+
+**Execute o script SQL e teste novamente!** 🚀 
