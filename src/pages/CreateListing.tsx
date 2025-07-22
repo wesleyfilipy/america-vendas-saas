@@ -87,6 +87,9 @@ const CreateListing: React.FC = () => {
     setIsLoading(true);
     
     try {
+      console.log('User ID:', user.id);
+      console.log('Form data:', data);
+
       // Calcular data de expiração
       const expiresAt = new Date();
       if (data.paymentType === 'free') {
@@ -97,25 +100,51 @@ const CreateListing: React.FC = () => {
 
       // Preparar dados do anúncio (apenas campos obrigatórios primeiro)
       const listingData = {
-        title: data.title,
-        description: data.description,
-        price: data.price,
+        title: data.title.trim(),
+        description: data.description.trim(),
+        price: parseFloat(data.price.toString()),
         category: data.category,
         user_id: user.id,
         expires_at: expiresAt.toISOString(),
         status: data.paymentType === 'free' ? 'published' : 'pending_payment',
-        is_paid: data.paymentType === 'premium'
+        is_paid: data.paymentType === 'premium',
+        images: [] // Inicializar array vazio
       };
 
       // Adicionar campos opcionais se preenchidos
-      if (data.city) listingData.city = data.city;
-      if (data.state) listingData.state = data.state;
-      if (data.street) listingData.street = data.street;
-      if (data.number) listingData.number = data.number;
-      if (data.zipCode) listingData.zip_code = data.zipCode;
-      if (data.contactInfo) listingData.contact_info = data.contactInfo;
+      if (data.city && data.city.trim()) listingData.city = data.city.trim();
+      if (data.state && data.state.trim()) listingData.state = data.state.trim();
+      if (data.street && data.street.trim()) listingData.street = data.street.trim();
+      if (data.number && data.number.trim()) listingData.number = data.number.trim();
+      if (data.zipCode && data.zipCode.trim()) listingData.zip_code = data.zipCode.trim();
+      if (data.contactInfo && data.contactInfo.trim()) listingData.contact_info = data.contactInfo.trim();
 
       console.log('Creating listing with data:', listingData);
+
+      // Verificar se o usuário existe na tabela users
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id, email, name')
+        .eq('id', user.id)
+        .single();
+
+      if (userError) {
+        console.error('User not found in users table:', userError);
+        // Criar usuário na tabela users se não existir
+        const { error: insertUserError } = await supabase
+          .from('users')
+          .insert({
+            id: user.id,
+            email: user.email || '',
+            name: user.user_metadata?.name || 'Usuário',
+            phone: user.user_metadata?.phone || ''
+          });
+
+        if (insertUserError) {
+          console.error('Error creating user:', insertUserError);
+          throw new Error('Erro ao criar perfil de usuário');
+        }
+      }
 
       // Criar o anúncio
       const { data: createdListing, error: listingError } = await supabase
@@ -125,8 +154,23 @@ const CreateListing: React.FC = () => {
         .single();
 
       if (listingError) {
-        console.error('Supabase error:', listingError);
+        console.error('Supabase error details:', {
+          message: listingError.message,
+          details: listingError.details,
+          hint: listingError.hint,
+          code: listingError.code
+        });
+        
+        // Se for erro 409, tentar identificar o problema
+        if (listingError.code === '409') {
+          throw new Error('Conflito na criação do anúncio. Verifique se todos os campos estão corretos.');
+        }
+        
         throw new Error(`Erro ao criar anúncio: ${listingError.message}`);
+      }
+
+      if (!createdListing) {
+        throw new Error('Anúncio não foi criado');
       }
 
       console.log('Listing created successfully:', createdListing);
