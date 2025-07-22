@@ -6,10 +6,10 @@ Configure as seguintes variáveis no Vercel (Settings > Environment Variables):
 
 ### 🔑 Chaves do Stripe
 ```bash
-VITE_STRIPE_PUBLISHABLE_KEY=pk_live_51O85t5BICvnzUZeSk33XcOh05q5lEXqbfjtUqExXTMqragrwfWlbaURYjco010dbTQHTGqTUtKjDSzeZeEuqpPle007JfyJA3R
-STRIPE_SECRET_KEY=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
-STRIPE_PREMIUM_PRICE_ID=price_1RnoroBICvnzUZeSB9asGpZJ
-STRIPE_WEBHOOK_SECRET=we_1RnpA5BICvnzUZeSJFsf3DpJ
+VITE_STRIPE_PUBLISHABLE_KEY=sua_chave_publica_aqui
+STRIPE_SECRET_KEY=sua_chave_secreta_aqui
+STRIPE_PREMIUM_PRICE_ID=seu_price_id_aqui
+STRIPE_WEBHOOK_SECRET=seu_webhook_secret_aqui
 ```
 
 ### 🌐 URLs
@@ -34,7 +34,7 @@ FRONTEND_URL=https://america-vendas.vercel.app
 - ✅ `payment_intent.payment_failed`
 
 ### 4. Copie o Webhook Secret
-- O webhook secret é: `we_1RnpA5BICvnzUZeSJFsf3DpJ`
+- Copie o webhook secret fornecido pelo Stripe
 - Adicione como variável de ambiente `STRIPE_WEBHOOK_SECRET`
 
 ## 🧪 Teste do Sistema
