@@ -95,55 +95,69 @@ const CreateListing: React.FC = () => {
         expiresAt.setFullYear(expiresAt.getFullYear() + 10); // 10 anos para premium
       }
 
+      // Preparar dados do anúncio (apenas campos obrigatórios primeiro)
+      const listingData = {
+        title: data.title,
+        description: data.description,
+        price: data.price,
+        category: data.category,
+        user_id: user.id,
+        expires_at: expiresAt.toISOString(),
+        status: data.paymentType === 'free' ? 'published' : 'pending_payment',
+        is_paid: data.paymentType === 'premium'
+      };
+
+      // Adicionar campos opcionais se preenchidos
+      if (data.city) listingData.city = data.city;
+      if (data.state) listingData.state = data.state;
+      if (data.street) listingData.street = data.street;
+      if (data.number) listingData.number = data.number;
+      if (data.zipCode) listingData.zip_code = data.zipCode;
+      if (data.contactInfo) listingData.contact_info = data.contactInfo;
+
+      console.log('Creating listing with data:', listingData);
+
       // Criar o anúncio
-      const { data: listingData, error: listingError } = await supabase
+      const { data: createdListing, error: listingError } = await supabase
         .from('listings')
-        .insert({
-          title: data.title,
-          description: data.description,
-          price: data.price,
-          category: data.category,
-          city: data.city,
-          state: data.state,
-          street: data.street,
-          number: data.number,
-          zip_code: data.zipCode,
-          contact_info: data.contactInfo,
-          user_id: user.id,
-          expires_at: expiresAt.toISOString(),
-          status: data.paymentType === 'free' ? 'published' : 'pending_payment',
-          is_paid: data.paymentType === 'premium'
-        })
+        .insert(listingData)
         .select()
         .single();
 
       if (listingError) {
-        throw listingError;
+        console.error('Supabase error:', listingError);
+        throw new Error(`Erro ao criar anúncio: ${listingError.message}`);
       }
 
+      console.log('Listing created successfully:', createdListing);
+
       // Upload das imagens
-      const imageUrls = await uploadImages(listingData.id);
+      const imageUrls = await uploadImages(createdListing.id);
 
       // Atualizar anúncio com as imagens
       if (imageUrls.length > 0) {
-        await supabase
+        const { error: updateError } = await supabase
           .from('listings')
           .update({ images: imageUrls })
-          .eq('id', listingData.id);
+          .eq('id', createdListing.id);
+
+        if (updateError) {
+          console.error('Error updating images:', updateError);
+        }
       }
 
       toast.success('Anúncio criado com sucesso!');
 
       // Redirecionar baseado no tipo de pagamento
       if (data.paymentType === 'premium') {
-        navigate(`/payment/${listingData.id}`);
+        navigate(`/payment/${createdListing.id}`);
       } else {
         navigate('/meus-anuncios');
       }
 
     } catch (error: any) {
       console.error('Error creating listing:', error);
-      toast.error('Erro ao criar anúncio. Tente novamente.');
+      toast.error(`Erro ao criar anúncio: ${error.message || 'Tente novamente.'}`);
     } finally {
       setIsLoading(false);
       setUploadProgress(0);
