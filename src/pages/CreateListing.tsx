@@ -389,7 +389,7 @@ const CreateListing: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <h4 className="font-medium text-gray-900">Publicação Premium</h4>
-                      <p className="text-sm text-gray-600">US$ 10 - Exposição ilimitada</p>
+                      <p className="text-sm text-gray-600">US$ 9,90 - Exposição ilimitada</p>
                     </div>
                     <input
                       type="radio"

@@ -1,58 +1,42 @@
 import Stripe from 'stripe';
 import { supabase } from '../../lib/supabase';
+import { config } from '../../config/env';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
+const stripe = new Stripe(config.stripe.secretKey, {
   apiVersion: '2023-10-16',
 });
 
-export const createPaymentSession = async (listingId: string, userId: string) => {
+export const createPaymentSession = async (listingId: string, userId: string, priceId?: string) => {
   try {
-    // Get listing details
+    // Buscar informações do anúncio
     const { data: listing, error: listingError } = await supabase
       .from('listings')
       .select('*')
       .eq('id', listingId)
+      .eq('user_id', userId)
       .single();
 
     if (listingError || !listing) {
-      throw new Error('Listing not found');
+      throw new Error('Anúncio não encontrado');
     }
 
-    // Create Stripe checkout session
+    // Criar sessão de pagamento
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [
         {
-          price_data: {
-            currency: 'brl',
-            product_data: {
-              name: listing.title,
-              description: listing.description,
-            },
-            unit_amount: Math.round(listing.price * 100), // Convert to cents
-          },
+          price: priceId || config.stripe.premiumPriceId,
           quantity: 1,
         },
       ],
       mode: 'payment',
-      success_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/anuncio/${listingId}?success=true`,
-      cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/anuncio/${listingId}?canceled=true`,
+      success_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/meus-anuncios`,
       metadata: {
         listingId,
         userId,
       },
     });
-
-    // Save payment record
-    await supabase
-      .from('listing_payments')
-      .insert({
-        listing_id: listingId,
-        user_id: userId,
-        stripe_session_id: session.id,
-        amount: listing.price,
-        status: 'pending',
-      });
 
     return session;
   } catch (error) {
@@ -67,28 +51,30 @@ export const handleWebhook = async (event: Stripe.Event) => {
       case 'checkout.session.completed':
         const session = event.data.object as Stripe.Checkout.Session;
         
-        // Update listing payment status
-        await supabase
+        // Atualizar anúncio como pago
+        const { error } = await supabase
           .from('listings')
-          .update({ is_paid: true })
+          .update({
+            status: 'published',
+            is_paid: true,
+            expires_at: new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000).toISOString(), // 10 anos
+          })
           .eq('id', session.metadata?.listingId);
 
-        // Update payment record
+        if (error) {
+          console.error('Error updating listing:', error);
+        }
+
+        // Criar registro de pagamento
         await supabase
           .from('listing_payments')
-          .update({ status: 'completed' })
-          .eq('stripe_session_id', session.id);
-
-        break;
-
-      case 'checkout.session.expired':
-        const expiredSession = event.data.object as Stripe.Checkout.Session;
-        
-        // Update payment record
-        await supabase
-          .from('listing_payments')
-          .update({ status: 'expired' })
-          .eq('stripe_session_id', expiredSession.id);
+          .insert({
+            listing_id: session.metadata?.listingId,
+            user_id: session.metadata?.userId,
+            amount: session.amount_total || 0,
+            status: 'completed',
+            stripe_session_id: session.id,
+          });
 
         break;
 

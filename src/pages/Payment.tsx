@@ -76,8 +76,9 @@ const Payment: React.FC = () => {
         body: JSON.stringify({
           listingId: listing.id,
           userId: user.id,
-          amount: 1000, // $10.00 em centavos
-          title: listing.title
+          amount: config.stripe.premiumAmount, // $9.90 em centavos
+          title: listing.title,
+          priceId: config.stripe.premiumPriceId
         }),
       });
 
@@ -205,7 +206,7 @@ const Payment: React.FC = () => {
                     <p className="text-gray-600">Exposição ilimitada</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-2xl font-bold text-blue-600">US$ 10,00</p>
+                    <p className="text-2xl font-bold text-blue-600">US$ 9,90</p>
                     <p className="text-sm text-gray-500">Pagamento único</p>
                   </div>
                 </div>
@@ -234,7 +235,7 @@ const Payment: React.FC = () => {
                   disabled={isProcessing}
                   className="w-full bg-blue-600 hover:bg-blue-700"
                 >
-                  {isProcessing ? 'Processando...' : 'Pagar US$ 10,00'}
+                  {isProcessing ? 'Processando...' : 'Pagar US$ 9,90'}
                 </Button>
               </div>
 
