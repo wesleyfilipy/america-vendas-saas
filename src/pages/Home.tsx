@@ -28,6 +28,20 @@ const Home: React.FC = () => {
     try {
       console.log('Fetching recent listings...');
       
+      // Primeiro, vamos verificar todos os anúncios sem filtro
+      const { data: allListings, error: allError } = await supabase
+        .from('listings')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      console.log('All listings (without filter):', allListings);
+      console.log('All listings count:', allListings?.length || 0);
+
+      if (allError) {
+        console.error('Error fetching all listings:', allError);
+      }
+
+      // Agora vamos buscar apenas os publicados
       const { data, error } = await supabase
         .from('listings')
         .select('*')
@@ -36,12 +50,28 @@ const Home: React.FC = () => {
         .limit(4);
 
       if (error) {
-        console.error('Error fetching listings:', error);
+        console.error('Error fetching published listings:', error);
+        
+        // Se der erro, vamos tentar buscar sem filtro de status
+        console.log('Trying to fetch listings without status filter...');
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('listings')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(4);
+
+        if (fallbackError) {
+          console.error('Fallback error:', fallbackError);
+          return;
+        }
+
+        console.log('Fallback listings found:', fallbackData?.length || 0);
+        setRecentListings(fallbackData || []);
         return;
       }
 
-      console.log('Listings found:', data?.length || 0);
-      console.log('Listings data:', data);
+      console.log('Published listings found:', data?.length || 0);
+      console.log('Published listings data:', data);
       
       setRecentListings(data || []);
     } catch (error) {
