@@ -107,7 +107,8 @@ const CreateListing: React.FC = () => {
         user_id: user.id,
         status: 'draft', // Sempre começar como rascunho
         is_paid: false,
-        images: [] // Inicializar array vazio
+        images: [], // Inicializar array vazio
+        expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 dias padrão
       };
 
       // Adicionar campos opcionais se preenchidos

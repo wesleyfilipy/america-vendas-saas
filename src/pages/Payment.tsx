@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { loadStripe } from '@stripe/stripe-js';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { config } from '../config/env';
 import Button from '../components/ui/Button';
 import toast from 'react-hot-toast';
+
+const stripePromise = loadStripe(config.stripe.publishableKey);
 
 interface Listing {
   id: string;
@@ -17,6 +21,11 @@ interface Listing {
   is_paid: boolean;
 }
 
+interface UserFreeUsage {
+  freeListingsCount: number;
+  canUseFree: boolean;
+}
+
 const Payment: React.FC = () => {
   const { listingId } = useParams<{ listingId: string }>();
   const navigate = useNavigate();
@@ -24,6 +33,10 @@ const Payment: React.FC = () => {
   const [listing, setListing] = useState<Listing | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [userFreeUsage, setUserFreeUsage] = useState<UserFreeUsage>({
+    freeListingsCount: 0,
+    canUseFree: true
+  });
 
   useEffect(() => {
     if (!user) {
@@ -32,6 +45,7 @@ const Payment: React.FC = () => {
     }
 
     fetchListing();
+    fetchUserFreeUsage();
   }, [listingId, user, navigate]);
 
   const fetchListing = async () => {
@@ -57,42 +71,101 @@ const Payment: React.FC = () => {
     }
   };
 
-  const handlePublishFree = async () => {
-    if (!listing) return;
-
-    setIsProcessing(true);
-    
+  const fetchUserFreeUsage = async () => {
     try {
-      // Calcular data de expiração (1 dia grátis)
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 1);
-
-      const { error } = await supabase
+      const { data: freeListings, error } = await supabase
         .from('listings')
-        .update({
-          status: 'published',
-          expires_at: expiresAt.toISOString(),
-          is_paid: false
-        })
-        .eq('id', listing.id)
-        .eq('user_id', user?.id);
+        .select('id')
+        .eq('user_id', user?.id)
+        .eq('is_paid', false)
+        .eq('status', 'published');
 
       if (error) {
-        throw error;
+        console.error('Error fetching free usage:', error);
+        return;
       }
 
-      toast.success('Anúncio publicado gratuitamente por 1 dia!');
-      navigate('/meus-anuncios');
+      const freeListingsCount = freeListings?.length || 0;
+      const canUseFree = freeListingsCount < 5;
+
+      setUserFreeUsage({
+        freeListingsCount,
+        canUseFree
+      });
     } catch (error) {
-      console.error('Error publishing listing:', error);
-      toast.error('Erro ao publicar anúncio');
-    } finally {
-      setIsProcessing(false);
+      console.error('Error fetching user free usage:', error);
     }
   };
 
-  const handlePublishPremium = async () => {
-    toast.error('Funcionalidade de pagamento premium em desenvolvimento. Use a opção gratuita por enquanto.');
+  const handlePlanSelection = async (plan: 'free' | 'basic' | 'premium') => {
+    if (!listing || !user) return;
+
+    setIsProcessing(true);
+
+    try {
+      // Verificar se pode usar plano gratuito
+      if (plan === 'free' && !userFreeUsage.canUseFree) {
+        toast.error('Você já usou seus 5 dias gratuitos. Escolha um plano pago.');
+        return;
+      }
+
+      if (plan === 'free') {
+        // Ativar plano gratuito
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 5); // 5 dias
+
+        const { error } = await supabase
+          .from('listings')
+          .update({
+            status: 'published',
+            expires_at: expiresAt.toISOString(),
+            is_paid: false
+          })
+          .eq('id', listing.id)
+          .eq('user_id', user.id);
+
+        if (error) {
+          throw error;
+        }
+
+        toast.success('Anúncio publicado gratuitamente por 5 dias!');
+        navigate('/meus-anuncios');
+        return;
+      }
+
+      // Para planos pagos, criar sessão do Stripe
+      const response = await fetch('/functions/v1/create-payment-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${config.supabase.anonKey}`
+        },
+        body: JSON.stringify({
+          listingId: listing.id,
+          userId: user.id,
+          plan: plan
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao criar sessão de pagamento');
+      }
+
+      if (result.success && result.url) {
+        // Redirecionar para Stripe Checkout
+        window.location.href = result.url;
+      } else {
+        throw new Error('Erro ao processar pagamento');
+      }
+
+    } catch (error: any) {
+      console.error('Payment error:', error);
+      toast.error(error.message || 'Erro ao processar pagamento');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   if (isLoading) {
@@ -118,12 +191,12 @@ const Payment: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="bg-white rounded-lg shadow-md p-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-6">Finalizar Publicação</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-6">Escolha seu Plano</h1>
 
           {/* Resumo do Anúncio */}
-          <div className="bg-gray-50 rounded-lg p-6 mb-6">
+          <div className="bg-gray-50 rounded-lg p-6 mb-8">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Resumo do Anúncio</h2>
             
             <div className="space-y-3">
@@ -151,22 +224,17 @@ const Payment: React.FC = () => {
             </div>
           </div>
 
-          {/* Opções de Publicação */}
-          <div className="space-y-4">
-            {/* Opção Gratuita */}
-            <div className="border border-gray-200 rounded-lg p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Publicação Gratuita</h3>
-                  <p className="text-gray-600">Ideal para testar a plataforma</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-2xl font-bold text-green-600">Grátis</p>
-                  <p className="text-sm text-gray-500">1 dia de exposição</p>
-                </div>
+          {/* Planos */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Plano Gratuito */}
+            <div className={`border-2 rounded-lg p-6 ${userFreeUsage.canUseFree ? 'border-green-500 bg-green-50' : 'border-gray-300 bg-gray-50 opacity-75'}`}>
+              <div className="text-center mb-4">
+                <h3 className="text-xl font-semibold text-gray-900">Gratuito</h3>
+                <p className="text-3xl font-bold text-green-600">R$ 0</p>
+                <p className="text-sm text-gray-500">5 dias de exposição</p>
               </div>
               
-              <ul className="space-y-2 mb-4">
+              <ul className="space-y-2 mb-6">
                 <li className="flex items-center text-sm text-gray-600">
                   <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
                   Publicação imediata
@@ -179,38 +247,37 @@ const Payment: React.FC = () => {
                   <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
                   Suporte por email
                 </li>
+                <li className="flex items-center text-sm text-gray-600">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                  {userFreeUsage.freeListingsCount}/5 usados
+                </li>
               </ul>
               
               <Button
-                onClick={handlePublishFree}
-                disabled={isProcessing}
-                className="w-full bg-green-600 hover:bg-green-700"
+                onClick={() => handlePlanSelection('free')}
+                disabled={!userFreeUsage.canUseFree || isProcessing}
+                className={`w-full ${userFreeUsage.canUseFree ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-400 cursor-not-allowed'}`}
               >
-                {isProcessing ? 'Publicando...' : 'Publicar Gratuitamente'}
+                {isProcessing ? 'Processando...' : userFreeUsage.canUseFree ? 'Publicar Gratuitamente' : 'Limite Atingido'}
               </Button>
             </div>
 
-            {/* Opção Premium */}
-            <div className="border border-gray-200 rounded-lg p-6 opacity-50">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Publicação Premium</h3>
-                  <p className="text-gray-600">Máxima exposição e recursos avançados</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-2xl font-bold text-blue-600">R$ 9,90</p>
-                  <p className="text-sm text-gray-500">30 dias de exposição</p>
-                </div>
+            {/* Plano Básico */}
+            <div className="border-2 border-blue-500 rounded-lg p-6 bg-blue-50">
+              <div className="text-center mb-4">
+                <h3 className="text-xl font-semibold text-gray-900">Básico</h3>
+                <p className="text-3xl font-bold text-blue-600">R$ 19,90</p>
+                <p className="text-sm text-gray-500">30 dias de exposição</p>
               </div>
               
-              <ul className="space-y-2 mb-4">
+              <ul className="space-y-2 mb-6">
                 <li className="flex items-center text-sm text-gray-600">
                   <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
                   Destaque na busca
                 </li>
                 <li className="flex items-center text-sm text-gray-600">
                   <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
-                  Estatísticas detalhadas
+                  Estatísticas básicas
                 </li>
                 <li className="flex items-center text-sm text-gray-600">
                   <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
@@ -218,27 +285,68 @@ const Payment: React.FC = () => {
                 </li>
                 <li className="flex items-center text-sm text-gray-600">
                   <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                  Renovação manual
+                </li>
+              </ul>
+              
+              <Button
+                onClick={() => handlePlanSelection('basic')}
+                disabled={isProcessing}
+                className="w-full bg-blue-600 hover:bg-blue-700"
+              >
+                {isProcessing ? 'Processando...' : 'Escolher Básico'}
+              </Button>
+            </div>
+
+            {/* Plano Premium */}
+            <div className="border-2 border-purple-500 rounded-lg p-6 bg-purple-50">
+              <div className="text-center mb-4">
+                <div className="bg-purple-600 text-white text-xs px-2 py-1 rounded-full mb-2 inline-block">
+                  MAIS POPULAR
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900">Premium</h3>
+                <p className="text-3xl font-bold text-purple-600">R$ 49,90</p>
+                <p className="text-sm text-gray-500">1 ano de exposição</p>
+              </div>
+              
+              <ul className="space-y-2 mb-6">
+                <li className="flex items-center text-sm text-gray-600">
+                  <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
+                  Destaque máximo
+                </li>
+                <li className="flex items-center text-sm text-gray-600">
+                  <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
+                  Estatísticas avançadas
+                </li>
+                <li className="flex items-center text-sm text-gray-600">
+                  <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
+                  Suporte VIP
+                </li>
+                <li className="flex items-center text-sm text-gray-600">
+                  <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
                   Renovação automática
                 </li>
               </ul>
               
               <Button
-                onClick={handlePublishPremium}
-                disabled={true}
-                className="w-full bg-gray-400 cursor-not-allowed"
+                onClick={() => handlePlanSelection('premium')}
+                disabled={isProcessing}
+                className="w-full bg-purple-600 hover:bg-purple-700"
               >
-                Em Breve
+                {isProcessing ? 'Processando...' : 'Escolher Premium'}
               </Button>
             </div>
           </div>
 
           {/* Informações Adicionais */}
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-            <h4 className="font-medium text-blue-900 mb-2">💡 Dica</h4>
-            <p className="text-sm text-blue-800">
-              Comece com a publicação gratuita para testar a plataforma. 
-              Você pode sempre fazer upgrade para premium depois!
-            </p>
+          <div className="mt-8 p-4 bg-blue-50 rounded-lg">
+            <h4 className="font-medium text-blue-900 mb-2">💡 Informações Importantes</h4>
+            <ul className="text-sm text-blue-800 space-y-1">
+              <li>• Você pode usar até 5 anúncios gratuitos</li>
+              <li>• Planos pagos incluem destaque e estatísticas</li>
+              <li>• Pagamentos processados com segurança pelo Stripe</li>
+              <li>• Renovação automática disponível no plano Premium</li>
+            </ul>
           </div>
         </div>
       </div>
