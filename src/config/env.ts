@@ -1,8 +1,8 @@
 // Environment configuration
 export const config = {
   supabase: {
-    url: import.meta.env.VITE_SUPABASE_URL || 'https://whsvonphvsfopwjteqju.supabase.co',
-    anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indoc3ZvbnBodnNmb3B3anRlcWp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg1NTA4MTksImV4cCI6MjA2NDEyNjgxOX0.4h8QukjZULbzitIeIwbA',
+    url: import.meta.env.VITE_SUPABASE_URL || '',
+    anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
   },
   stripe: {
     publishableKey: import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '',
