@@ -1,10 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import Stripe from 'https://esm.sh/stripe@12.0.0'
-
-const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') || '', {
-  apiVersion: '2023-10-16',
-})
+import Stripe from 'https://esm.sh/stripe@14.0.0'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -18,11 +14,22 @@ serve(async (req) => {
   }
 
   try {
+    // Initialize Stripe
+    const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') || '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', {
+      apiVersion: '2023-10-16',
+    })
+
+    // Initialize Supabase
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    // Get request body
     const { listingId, userId, plan } = await req.json()
 
     if (!listingId || !userId || !plan) {
       return new Response(
-        JSON.stringify({ error: 'listingId, userId, and plan are required' }),
+        JSON.stringify({ error: 'Missing required parameters' }),
         { 
           status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -30,33 +37,46 @@ serve(async (req) => {
       )
     }
 
-    // Verificar se o usuário já usou a opção gratuita
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
-    )
-
-    // Buscar anúncios gratuitos do usuário
-    const { data: freeListings, error: freeError } = await supabase
+    // Verify listing exists and belongs to user
+    const { data: listing, error: listingError } = await supabase
       .from('listings')
-      .select('id, created_at')
+      .select('*')
+      .eq('id', listingId)
       .eq('user_id', userId)
-      .eq('is_paid', false)
-      .eq('status', 'published')
+      .single()
 
-    if (freeError) {
-      throw new Error('Erro ao verificar anúncios gratuitos')
+    if (listingError || !listing) {
+      return new Response(
+        JSON.stringify({ error: 'Listing not found or access denied' }),
+        { 
+          status: 404, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
     }
 
-    // Verificar se já usou os 5 dias gratuitos
-    const freeListingsCount = freeListings?.length || 0
-    const canUseFree = freeListingsCount < 5
+    // Define plan configurations
+    const planConfigs = {
+      basic: {
+        priceId: 'price_1RnoroBICvnzUZeSB9asGpZJ',
+        amount: 1990,
+        duration: 30,
+        name: 'Plano Básico',
+        description: '30 dias de exposição'
+      },
+      premium: {
+        priceId: 'price_1RnoroBICvnzUZeSB9asGpZJ', // Usando o mesmo price ID por enquanto
+        amount: 4990,
+        duration: 365,
+        name: 'Plano Premium',
+        description: '1 ano de exposição'
+      }
+    }
 
-    if (plan === 'free' && !canUseFree) {
+    const planConfig = planConfigs[plan as keyof typeof planConfigs]
+    if (!planConfig) {
       return new Response(
-        JSON.stringify({ 
-          error: 'Você já usou seus 5 dias gratuitos. Escolha um plano pago.' 
-        }),
+        JSON.stringify({ error: 'Invalid plan' }),
         { 
           status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -64,68 +84,61 @@ serve(async (req) => {
       )
     }
 
-    let session
-
-    if (plan === 'free') {
-      // Para planos gratuitos, não criar sessão do Stripe
-      // Apenas retornar sucesso
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          plan: 'free',
-          message: 'Plano gratuito ativado'
-        }),
-        { 
-          status: 200, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      )
-    } else {
-      // Para planos pagos, criar sessão do Stripe
-      const priceId = plan === 'premium' 
-        ? Deno.env.get('STRIPE_PREMIUM_PRICE_ID')
-        : Deno.env.get('STRIPE_BASIC_PRICE_ID')
-
-      if (!priceId) {
-        throw new Error('Price ID não configurado')
-      }
-
-      session = await stripe.checkout.sessions.create({
-        payment_method_types: ['card'],
-        line_items: [
-          {
-            price: priceId,
-            quantity: 1,
+    // Create Stripe checkout session
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price_data: {
+            currency: 'brl',
+            product_data: {
+              name: planConfig.name,
+              description: planConfig.description,
+            },
+            unit_amount: planConfig.amount,
           },
-        ],
-        mode: 'payment',
-        success_url: `${req.headers.get('origin')}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${req.headers.get('origin')}/payment/cancel`,
-        metadata: {
-          listingId,
-          userId,
-          plan
-        }
+          quantity: 1,
+        },
+      ],
+      mode: 'payment',
+      success_url: `${req.headers.get('origin')}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${req.headers.get('origin')}/payment?listingId=${listingId}`,
+      metadata: {
+        listingId,
+        userId,
+        plan,
+        duration: planConfig.duration.toString()
+      },
+    })
+
+    // Update listing with payment session info
+    const expiresAt = new Date()
+    expiresAt.setDate(expiresAt.getDate() + planConfig.duration)
+
+    await supabase
+      .from('listings')
+      .update({
+        payment_session_id: session.id,
+        plan_type: plan,
+        expires_at: expiresAt.toISOString()
       })
-    }
+      .eq('id', listingId)
 
     return new Response(
       JSON.stringify({ 
-        sessionId: session?.id,
-        url: session?.url,
-        plan,
-        success: true
+        success: true, 
+        url: session.url,
+        sessionId: session.id 
       }),
       { 
-        status: 200, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       }
     )
 
   } catch (error) {
-    console.error('Error:', error)
+    console.error('Error creating payment session:', error)
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: 'Internal server error' }),
       { 
         status: 500, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 

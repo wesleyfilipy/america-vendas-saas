@@ -1,8 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import Stripe from 'https://esm.sh/stripe@12.0.0'
+import Stripe from 'https://esm.sh/stripe@14.0.0'
 
-const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') || '', {
+const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') || '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', {
   apiVersion: '2023-10-16',
 })
 
@@ -19,80 +19,81 @@ serve(async (req) => {
     const body = await req.text()
     const event = stripe.webhooks.constructEvent(body, signature, endpointSecret)
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    // Initialize Supabase
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     switch (event.type) {
       case 'checkout.session.completed':
         const session = event.data.object as Stripe.Checkout.Session
         
-        if (session.metadata?.listingId && session.metadata?.userId && session.metadata?.plan) {
-          const { listingId, userId, plan } = session.metadata
+        if (session.payment_status === 'paid') {
+          const { listingId, userId, plan, duration } = session.metadata || {}
           
-          // Calcular data de expiração baseada no plano
-          let expiresAt = new Date()
-          if (plan === 'basic') {
-            expiresAt.setDate(expiresAt.getDate() + 30) // 30 dias
-          } else if (plan === 'premium') {
-            expiresAt.setFullYear(expiresAt.getFullYear() + 1) // 1 ano
+          if (listingId && userId) {
+            // Update listing status
+            const expiresAt = new Date()
+            expiresAt.setDate(expiresAt.getDate() + parseInt(duration || '30'))
+
+            const { error } = await supabase
+              .from('listings')
+              .update({
+                status: 'published',
+                is_paid: true,
+                payment_status: 'completed',
+                payment_session_id: session.id,
+                plan_type: plan,
+                expires_at: expiresAt.toISOString(),
+                paid_at: new Date().toISOString()
+              })
+              .eq('id', listingId)
+              .eq('user_id', userId)
+
+            if (error) {
+              console.error('Error updating listing:', error)
+            }
+
+            // Create payment record
+            await supabase
+              .from('payments')
+              .insert({
+                listing_id: listingId,
+                user_id: userId,
+                stripe_session_id: session.id,
+                amount: session.amount_total,
+                currency: session.currency,
+                status: 'completed',
+                plan_type: plan,
+                payment_method: 'stripe'
+              })
           }
-
-          // Atualizar o anúncio
-          const { error: updateError } = await supabase
-            .from('listings')
-            .update({
-              status: 'published',
-              is_paid: true,
-              expires_at: expiresAt.toISOString(),
-              payment_status: 'paid',
-              stripe_session_id: session.id
-            })
-            .eq('id', listingId)
-            .eq('user_id', userId)
-
-          if (updateError) {
-            console.error('Error updating listing:', updateError)
-            return new Response('Error updating listing', { status: 500 })
-          }
-
-          // Criar registro de pagamento
-          await supabase
-            .from('listing_payments')
-            .insert({
-              listing_id: listingId,
-              user_id: userId,
-              amount: session.amount_total ? session.amount_total / 100 : 0,
-              currency: session.currency || 'brl',
-              status: 'completed',
-              stripe_session_id: session.id,
-              plan: plan
-            })
         }
         break
 
-      case 'payment_intent.payment_failed':
-        const paymentIntent = event.data.object as Stripe.PaymentIntent
+      case 'checkout.session.expired':
+        const expiredSession = event.data.object as Stripe.Checkout.Session
+        const { listingId: expiredListingId } = expiredSession.metadata || {}
         
-        if (paymentIntent.metadata?.listingId) {
-          // Atualizar status do anúncio para falha
+        if (expiredListingId) {
+          // Mark listing as expired if payment wasn't completed
           await supabase
             .from('listings')
             .update({
               status: 'draft',
-              payment_status: 'failed'
+              payment_status: 'expired'
             })
-            .eq('id', paymentIntent.metadata.listingId)
+            .eq('id', expiredListingId)
+            .eq('payment_session_id', expiredSession.id)
         }
         break
 
       default:
-        console.log(`Unhandled event type ${event.type}`)
+        console.log(`Unhandled event type: ${event.type}`)
     }
 
     return new Response(JSON.stringify({ received: true }), {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' }
     })
 
   } catch (err) {

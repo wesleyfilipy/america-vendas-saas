@@ -134,10 +134,32 @@ const Payment: React.FC = () => {
         return;
       }
 
-      // Para planos pagos, mostrar mensagem temporária
-      if (plan === 'basic' || plan === 'premium') {
-        toast.error('Funcionalidade de pagamento em desenvolvimento. Use a opção gratuita por enquanto.');
-        return;
+      // Para planos pagos, criar sessão do Stripe
+      const response = await fetch('/functions/v1/create-payment-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${config.supabase.anonKey}`
+        },
+        body: JSON.stringify({
+          listingId: listing.id,
+          userId: user.id,
+          plan: plan
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Erro ao criar sessão de pagamento');
+      }
+
+      const result = await response.json();
+
+      if (result.success && result.url) {
+        // Redirecionar para Stripe Checkout
+        window.location.href = result.url;
+      } else {
+        throw new Error('Erro ao processar pagamento');
       }
 
     } catch (error: any) {
