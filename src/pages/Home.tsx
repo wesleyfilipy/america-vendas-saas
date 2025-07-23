@@ -26,6 +26,8 @@ const Home: React.FC = () => {
 
   const fetchRecentListings = async () => {
     try {
+      console.log('Fetching recent listings...');
+      
       const { data, error } = await supabase
         .from('listings')
         .select('*')
@@ -38,6 +40,9 @@ const Home: React.FC = () => {
         return;
       }
 
+      console.log('Listings found:', data?.length || 0);
+      console.log('Listings data:', data);
+      
       setRecentListings(data || []);
     } catch (error) {
       console.error('Error fetching listings:', error);
