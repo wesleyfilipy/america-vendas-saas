@@ -100,6 +100,7 @@ const Payment: React.FC = () => {
   const handlePlanSelection = async (plan: 'free' | 'basic' | 'premium') => {
     if (!listing || !user) return;
 
+    console.log('Iniciando seleção de plano:', plan);
     setIsProcessing(true);
 
     try {
@@ -110,6 +111,7 @@ const Payment: React.FC = () => {
       }
 
       if (plan === 'free') {
+        console.log('Ativando plano gratuito...');
         // Ativar plano gratuito
         const expiresAt = new Date();
         expiresAt.setDate(expiresAt.getDate() + 5); // 5 dias
@@ -134,6 +136,7 @@ const Payment: React.FC = () => {
         return;
       }
 
+      console.log('Criando sessão de pagamento para plano:', plan);
       // Para planos pagos, criar sessão do Stripe
       const response = await fetch('/functions/v1/create-payment-session', {
         method: 'POST',
@@ -148,14 +151,19 @@ const Payment: React.FC = () => {
         })
       });
 
+      console.log('Resposta da Edge Function:', response.status);
+      
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        console.error('Erro da Edge Function:', errorData);
         throw new Error(errorData.error || 'Erro ao criar sessão de pagamento');
       }
 
       const result = await response.json();
+      console.log('Resultado da Edge Function:', result);
 
       if (result.success && result.url) {
+        console.log('Redirecionando para Stripe:', result.url);
         // Redirecionar para Stripe Checkout
         window.location.href = result.url;
       } else {
