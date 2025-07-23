@@ -1,52 +1,54 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search as SearchIcon, Filter, MapPin, DollarSign } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 import ListingFilter from '../components/listing/ListingFilter';
+import toast from 'react-hot-toast';
+
+interface Listing {
+  id: string;
+  title: string;
+  description: string;
+  price: number;
+  category: string;
+  city: string;
+  state: string;
+  status: string;
+  images: string[];
+  created_at: string;
+}
 
 const Search: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Mock data for demonstration
-  const mockListings = [
-    {
-      id: '1',
-      title: 'Casa em condomínio fechado',
-      description: 'Linda casa com 3 quartos, 2 banheiros, garagem para 2 carros',
-      price: 450000,
-      location: 'São Paulo, SP',
-      category: 'casa',
-      images: ['https://images.pexels.com/photos/106399/pexels-photo-106399.jpeg']
-    },
-    {
-      id: '2',
-      title: 'Carro usado em ótimo estado',
-      description: 'Honda Civic 2018, completo, único dono',
-      price: 85000,
-      location: 'Rio de Janeiro, RJ',
-      category: 'carro',
-      images: ['https://images.pexels.com/photos/3802510/pexels-photo-3802510.jpeg']
-    },
-    {
-      id: '3',
-      title: 'Terreno para construção',
-      description: 'Terreno de 500m², plano, com documentação em dia',
-      price: 180000,
-      location: 'Belo Horizonte, MG',
-      category: 'terreno',
-      images: ['https://images.pexels.com/photos/323705/pexels-photo-323705.jpeg']
-    },
-    {
-      id: '4',
-      title: 'Loja comercial',
-      description: 'Loja de 80m² em local movimentado, ideal para comércio',
-      price: 320000,
-      location: 'Curitiba, PR',
-      category: 'comercio',
-      images: ['https://images.pexels.com/photos/323780/pexels-photo-323780.jpeg']
+  useEffect(() => {
+    fetchListings();
+  }, []);
+
+  const fetchListings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('listings')
+        .select('*')
+        .eq('status', 'published')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      setListings(data || []);
+    } catch (error) {
+      console.error('Error fetching listings:', error);
+      toast.error('Erro ao carregar anúncios');
+    } finally {
+      setIsLoading(false);
     }
-  ];
+  };
 
-  const filteredListings = mockListings.filter(listing => {
+  const filteredListings = listings.filter(listing => {
     const matchesSearch = listing.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          listing.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = !selectedCategory || listing.category === selectedCategory;
@@ -143,36 +145,48 @@ const Search: React.FC = () => {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredListings.map((listing) => (
-                <div key={listing.id} className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow">
-                  <div className="h-48 bg-gray-200">
-                    <img
-                      src={listing.images[0]}
-                      alt={listing.title}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div className="p-4">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-1">
-                      {listing.title}
-                    </h3>
-                    <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-                      {listing.description}
-                    </p>
-                    <div className="flex justify-between items-center">
-                      <span className="text-lg font-bold text-blue-700">
-                        R$ {listing.price.toLocaleString()}
-                      </span>
-                      <div className="flex items-center text-sm text-gray-500">
-                        <MapPin size={16} className="mr-1" />
-                        {listing.location}
+            {isLoading ? (
+              <div className="flex justify-center items-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-700"></div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredListings.map((listing) => (
+                  <div key={listing.id} className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                    <div className="h-48 bg-gray-200">
+                      {listing.images && listing.images.length > 0 ? (
+                        <img
+                          src={listing.images[0]}
+                          alt={listing.title}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <span className="text-gray-500">Sem imagem</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-4">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-1">
+                        {listing.title}
+                      </h3>
+                      <p className="text-gray-600 text-sm mb-3 line-clamp-2">
+                        {listing.description}
+                      </p>
+                      <div className="flex justify-between items-center">
+                        <span className="text-lg font-bold text-blue-700">
+                          R$ {listing.price.toLocaleString()}
+                        </span>
+                        <div className="flex items-center text-sm text-gray-500">
+                          <MapPin size={16} className="mr-1" />
+                          {listing.city && listing.state ? `${listing.city}, ${listing.state}` : 'Localização não informada'}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
 
             {filteredListings.length === 0 && (
               <div className="text-center py-12">

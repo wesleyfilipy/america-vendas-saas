@@ -1,8 +1,8 @@
--- Script para diagnosticar e corrigir problemas com anúncios e imagens
+-- Script corrigido para configurar Supabase sem erro de permissão
 -- Execute este script no SQL Editor do Supabase
 
 -- =====================================================
--- 1. VERIFICAR ESTRUTURA DA TABELA LISTINGS
+-- 1. VERIFICAR E ADICIONAR CAMPO STATUS
 -- =====================================================
 
 -- Verificar se o campo status existe
@@ -27,7 +27,36 @@ BEGIN
 END $$;
 
 -- =====================================================
--- 2. VERIFICAR E CORRIGIR POLÍTICAS DE LISTINGS
+-- 2. CONFIGURAR TABELA USERS
+-- =====================================================
+
+-- Criar tabela users se não existir
+CREATE TABLE IF NOT EXISTS public.users (
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    email TEXT NOT NULL,
+    name TEXT NOT NULL,
+    phone TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Configurar políticas da tabela users
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Enable read access for own profile" ON public.users;
+DROP POLICY IF EXISTS "Enable update for own profile" ON public.users;
+DROP POLICY IF EXISTS "Enable insert for new users" ON public.users;
+
+CREATE POLICY "Enable read access for own profile" ON public.users
+    FOR SELECT USING (auth.uid() = id);
+
+CREATE POLICY "Enable update for own profile" ON public.users
+    FOR UPDATE USING (auth.uid() = id);
+
+CREATE POLICY "Enable insert for new users" ON public.users
+    FOR INSERT WITH CHECK (true);
+
+-- =====================================================
+-- 3. CONFIGURAR POLÍTICAS DE LISTINGS
 -- =====================================================
 
 -- Remover políticas existentes
@@ -50,57 +79,17 @@ CREATE POLICY "Allow delete for owner" ON public.listings
     FOR DELETE USING (auth.uid() = user_id);
 
 -- =====================================================
--- 3. CONFIGURAR STORAGE PARA IMAGENS
+-- 4. CONFIGURAR STORAGE (SEM ALTERAR TABELA OBJECTS)
 -- =====================================================
 
--- Criar bucket para imagens
+-- Criar bucket para imagens (isso deve funcionar)
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('images', 'images', true)
 ON CONFLICT (id) DO NOTHING;
 
--- Remover políticas existentes do storage
-DROP POLICY IF EXISTS "Allow authenticated users to upload images" ON storage.objects;
-DROP POLICY IF EXISTS "Allow public viewing of images" ON storage.objects;
-DROP POLICY IF EXISTS "Allow users to update their own images" ON storage.objects;
-DROP POLICY IF EXISTS "Allow users to delete their own images" ON storage.objects;
-
--- Criar políticas de storage
-CREATE POLICY "Allow authenticated users to upload images" ON storage.objects
-    FOR INSERT WITH CHECK (
-        bucket_id = 'images' 
-        AND auth.role() = 'authenticated'
-    );
-
-CREATE POLICY "Allow public viewing of images" ON storage.objects
-    FOR SELECT USING (bucket_id = 'images');
-
-CREATE POLICY "Allow users to update their own images" ON storage.objects
-    FOR UPDATE USING (
-        bucket_id = 'images' 
-        AND auth.uid()::text = (storage.foldername(name))[1]
-    );
-
-CREATE POLICY "Allow users to delete their own images" ON storage.objects
-    FOR DELETE USING (
-        bucket_id = 'images' 
-        AND auth.uid()::text = (storage.foldername(name))[1]
-    );
-
--- Habilitar RLS no storage
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
-
 -- =====================================================
--- 4. SINCRONIZAR USUÁRIOS
+-- 5. SINCRONIZAR USUÁRIOS
 -- =====================================================
-
--- Verificar se a tabela users existe
-CREATE TABLE IF NOT EXISTS public.users (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    email TEXT NOT NULL,
-    name TEXT NOT NULL,
-    phone TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
-);
 
 -- Sincronizar usuários do auth
 INSERT INTO public.users (id, email, name, phone)
@@ -116,7 +105,7 @@ WHERE NOT EXISTS (
 AND au.email IS NOT NULL;
 
 -- =====================================================
--- 5. ATUALIZAR ANÚNCIOS EXISTENTES
+-- 6. ATUALIZAR ANÚNCIOS EXISTENTES
 -- =====================================================
 
 -- Atualizar status de anúncios existentes
@@ -125,7 +114,7 @@ SET status = 'published'
 WHERE status IS NULL OR status = '';
 
 -- =====================================================
--- 6. VERIFICAR CONFIGURAÇÃO
+-- 7. VERIFICAR CONFIGURAÇÃO
 -- =====================================================
 
 -- Verificar estrutura da tabela listings
@@ -155,16 +144,6 @@ SELECT
 FROM storage.buckets 
 WHERE id = 'images';
 
--- Verificar políticas de storage
-SELECT 'POLÍTICAS DE STORAGE:' as info;
-SELECT 
-    policyname,
-    cmd,
-    qual
-FROM pg_policies 
-WHERE tablename = 'objects' 
-AND schemaname = 'storage';
-
 -- Contar anúncios por status
 SELECT 'ANÚNCIOS POR STATUS:' as info;
 SELECT 
@@ -174,38 +153,16 @@ FROM public.listings
 GROUP BY status;
 
 -- =====================================================
--- 7. TESTE DE INSERÇÃO
--- =====================================================
-
--- Teste de inserção (execute apenas se quiser testar)
--- INSERT INTO public.listings (
---     title,
---     description,
---     price,
---     user_id,
---     expires_at,
---     category,
---     status,
---     is_paid
--- ) VALUES (
---     'Teste de Anúncio',
---     'Descrição de teste',
---     100.00,
---     auth.uid(),
---     NOW() + INTERVAL '1 day',
---     'outro',
---     'published',
---     false
--- ) RETURNING id, title, status;
-
--- =====================================================
 -- 8. MENSAGEM DE SUCESSO
 -- =====================================================
 
-SELECT '✅ DIAGNÓSTICO CONCLUÍDO!' as status;
+SELECT '✅ CONFIGURAÇÃO CONCLUÍDA!' as status;
 SELECT '🎯 Problemas corrigidos:' as message;
 SELECT '   - Campo status adicionado' as fix1;
-SELECT '   - Políticas de listings corrigidas' as fix2;
-SELECT '   - Storage configurado' as fix3;
-SELECT '   - Usuários sincronizados' as fix4;
-SELECT '   - Anúncios existentes atualizados' as fix5; 
+SELECT '   - Tabela users configurada' as fix2;
+SELECT '   - Políticas de listings corrigidas' as fix3;
+SELECT '   - Bucket de imagens criado' as fix4;
+SELECT '   - Usuários sincronizados' as fix5;
+SELECT '   - Anúncios existentes atualizados' as fix6;
+SELECT '' as note;
+SELECT '⚠️  NOTA: Configure as políticas de storage manualmente no Dashboard' as warning; 

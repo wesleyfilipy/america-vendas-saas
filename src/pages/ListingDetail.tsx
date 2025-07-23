@@ -1,77 +1,71 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { MapPin, Phone, Mail, Calendar, DollarSign, ArrowLeft } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
 
-interface MockListing {
+interface Listing {
   id: string;
   title: string;
   description: string;
   price: number;
-  location: string;
   category: string;
+  city: string;
+  state: string;
+  street: string;
+  number: string;
+  zip_code: string;
+  contact_info: string;
   created_at: string;
+  images: string[];
+  user_id: string;
   user: {
     name: string;
     email: string;
-    phone: string;
   };
-  images: string[];
 }
 
 const ListingDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const [listing, setListing] = useState<MockListing | null>(null);
+  const [listing, setListing] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(0);
 
   useEffect(() => {
-    // Simulate API call with mock data
-    const fetchListing = async () => {
-      setLoading(true);
-      
-      // Simulate delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock data
-      const mockListing: MockListing = {
-        id: id || '1',
-        title: 'Casa em condomínio fechado com 3 quartos',
-        description: `Linda casa localizada em condomínio fechado com segurança 24h. 
-        
-        Características:
-        • 3 quartos (1 suíte)
-        • 2 banheiros
-        • Sala de estar e jantar
-        • Cozinha americana
-        • Garagem para 2 carros
-        • Área de lazer com piscina
-        • Jardim privativo
-        
-        A casa está em excelente estado de conservação, recém pintada e com acabamento de primeira linha. Localização privilegiada, próxima a escolas, shopping e transporte público.`,
-        price: 450000,
-        location: 'São Paulo, SP - Jardins',
-        category: 'casa',
-        created_at: '2024-01-15T10:30:00Z',
-        user: {
-          name: 'João Silva',
-          email: 'joao.silva@email.com',
-          phone: '(11) 99999-9999'
-        },
-        images: [
-          'https://images.pexels.com/photos/106399/pexels-photo-106399.jpeg',
-          'https://images.pexels.com/photos/323705/pexels-photo-323705.jpeg',
-          'https://images.pexels.com/photos/323780/pexels-photo-323780.jpeg',
-          'https://images.pexels.com/photos/3802510/pexels-photo-3802510.jpeg'
-        ]
-      };
-      
-      setListing(mockListing);
-      setLoading(false);
-    };
-
     fetchListing();
   }, [id]);
+
+  const fetchListing = async () => {
+    if (!id) return;
+
+    try {
+      setLoading(true);
+      
+      // Buscar o anúncio com dados do usuário
+      const { data, error } = await supabase
+        .from('listings')
+        .select(`
+          *,
+          user:users(name, email)
+        `)
+        .eq('id', id)
+        .eq('status', 'published')
+        .single();
+
+      if (error) {
+        console.error('Error fetching listing:', error);
+        setListing(null);
+        return;
+      }
+
+      setListing(data);
+    } catch (error) {
+      console.error('Error fetching listing:', error);
+      setListing(null);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -98,6 +92,27 @@ const ListingDetail: React.FC = () => {
     );
   }
 
+  const getLocation = () => {
+    const parts = [];
+    if (listing.city) parts.push(listing.city);
+    if (listing.state) parts.push(listing.state);
+    if (listing.street) parts.push(listing.street);
+    if (listing.number) parts.push(listing.number);
+    
+    return parts.length > 0 ? parts.join(', ') : 'Localização não informada';
+  };
+
+  const getCategoryLabel = (category: string) => {
+    const labels: Record<string, string> = {
+      'imoveis': 'Imóveis',
+      'veiculos': 'Veículos',
+      'eletronicos': 'Eletrônicos',
+      'servicos': 'Serviços',
+      'outros': 'Outros'
+    };
+    return labels[category] || category;
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -116,15 +131,21 @@ const ListingDetail: React.FC = () => {
           <div>
             <div className="bg-white rounded-lg shadow-sm overflow-hidden">
               <div className="aspect-w-16 aspect-h-9">
-                <img
-                  src={listing.images[selectedImage]}
-                  alt={listing.title}
-                  className="w-full h-96 object-cover"
-                />
+                {listing.images && listing.images.length > 0 ? (
+                  <img
+                    src={listing.images[selectedImage]}
+                    alt={listing.title}
+                    className="w-full h-96 object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-96 bg-gray-200 flex items-center justify-center">
+                    <span className="text-gray-500">Sem imagem</span>
+                  </div>
+                )}
               </div>
               
               {/* Thumbnail images */}
-              {listing.images.length > 1 && (
+              {listing.images && listing.images.length > 1 && (
                 <div className="p-4">
                   <div className="flex space-x-2 overflow-x-auto">
                     {listing.images.map((image, index) => (
@@ -158,13 +179,13 @@ const ListingDetail: React.FC = () => {
                   R$ {listing.price.toLocaleString()}
                 </span>
                 <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-                  {listing.category}
+                  {getCategoryLabel(listing.category)}
                 </span>
               </div>
 
               <div className="flex items-center text-gray-600 mb-4">
                 <MapPin size={20} className="mr-2" />
-                {listing.location}
+                {getLocation()}
               </div>
 
               <div className="flex items-center text-gray-600 mb-6">
@@ -182,42 +203,43 @@ const ListingDetail: React.FC = () => {
             <div className="bg-white rounded-lg shadow-sm p-6">
               <h3 className="text-lg font-semibold mb-4">Informações de Contato</h3>
               
-              <div className="space-y-3">
-                <div className="flex items-center">
-                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mr-3">
-                    <span className="text-blue-700 font-semibold">
-                      {listing.user.name.charAt(0)}
-                    </span>
+              {listing.user && (
+                <div className="space-y-3">
+                  <div className="flex items-center text-gray-700">
+                    <Mail size={20} className="mr-3 text-gray-400" />
+                    <span>{listing.user.email}</span>
                   </div>
-                  <div>
-                    <p className="font-medium text-gray-900">{listing.user.name}</p>
-                    <p className="text-sm text-gray-600">Anunciante</p>
-                  </div>
+                  
+                  {listing.contact_info && (
+                    <div className="flex items-center text-gray-700">
+                      <Phone size={20} className="mr-3 text-gray-400" />
+                      <span>{listing.contact_info}</span>
+                    </div>
+                  )}
                 </div>
-
-                <div className="flex items-center text-gray-600">
-                  <Phone size={20} className="mr-3" />
-                  <span>{listing.user.phone}</span>
+              )}
+              
+              {!listing.user && listing.contact_info && (
+                <div className="flex items-center text-gray-700">
+                  <Phone size={20} className="mr-3 text-gray-400" />
+                  <span>{listing.contact_info}</span>
                 </div>
-
-                <div className="flex items-center text-gray-600">
-                  <Mail size={20} className="mr-3" />
-                  <span>{listing.user.email}</span>
-                </div>
-              </div>
-
-              <div className="mt-6 space-y-3">
-                <Button className="w-full">
-                  <Phone size={20} className="mr-2" />
-                  Ligar agora
-                </Button>
-                
-                <Button variant="outline" className="w-full">
-                  <Mail size={20} className="mr-2" />
-                  Enviar mensagem
-                </Button>
-              </div>
+              )}
             </div>
+
+            {/* Additional Details */}
+            {(listing.street || listing.number || listing.zip_code) && (
+              <div className="bg-white rounded-lg shadow-sm p-6">
+                <h3 className="text-lg font-semibold mb-4">Endereço Completo</h3>
+                <div className="space-y-2 text-gray-700">
+                  {listing.street && <p>Rua: {listing.street}</p>}
+                  {listing.number && <p>Número: {listing.number}</p>}
+                  {listing.city && <p>Cidade: {listing.city}</p>}
+                  {listing.state && <p>Estado: {listing.state}</p>}
+                  {listing.zip_code && <p>CEP: {listing.zip_code}</p>}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

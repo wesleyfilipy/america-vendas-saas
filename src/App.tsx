@@ -9,6 +9,7 @@ import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import CreateListing from './pages/CreateListing';
+import EditListing from './pages/EditListing';
 import ListingDetail from './pages/ListingDetail';
 import Search from './pages/Search';
 import UserListings from './pages/UserListings';
@@ -35,6 +36,11 @@ function App() {
               <Route path="/criar-anuncio" element={
                 <ProtectedRoute>
                   <CreateListing />
+                </ProtectedRoute>
+              } />
+              <Route path="/editar-anuncio/:id" element={
+                <ProtectedRoute>
+                  <EditListing />
                 </ProtectedRoute>
               } />
               <Route path="/meus-anuncios" element={
