@@ -1,78 +1,43 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { NextApiRequest, NextApiResponse } from 'next';
 import Stripe from 'stripe';
-import { createClient } from '@supabase/supabase-js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
   apiVersion: '2023-10-16',
 });
 
-const supabase = createClient(
-  process.env.VITE_SUPABASE_URL || '',
-  process.env.VITE_SUPABASE_ANON_KEY || ''
-);
-
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const { listingId, userId } = req.body;
+    const { listingId, userId, priceId } = req.body;
 
     if (!listingId || !userId) {
-      return res.status(400).json({ error: 'listingId and userId are required' });
+      return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Get listing details
-    const { data: listing, error: listingError } = await supabase
-      .from('listings')
-      .select('*')
-      .eq('id', listingId)
-      .single();
-
-    if (listingError || !listing) {
-      return res.status(404).json({ error: 'Listing not found' });
-    }
-
-    // Create Stripe checkout session
+    // Criar sessão de pagamento
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [
         {
-          price_data: {
-            currency: 'brl',
-            product_data: {
-              name: listing.title,
-              description: listing.description,
-            },
-            unit_amount: Math.round(listing.price * 100), // Convert to cents
-          },
+          price: priceId || process.env.STRIPE_PREMIUM_PRICE_ID || '',
           quantity: 1,
         },
       ],
       mode: 'payment',
-      success_url: `${process.env.FRONTEND_URL || 'https://your-domain.vercel.app'}/anuncio/${listingId}?success=true`,
-      cancel_url: `${process.env.FRONTEND_URL || 'https://your-domain.vercel.app'}/anuncio/${listingId}?canceled=true`,
+      success_url: `${process.env.FRONTEND_URL || 'https://america-vendas.vercel.app'}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.FRONTEND_URL || 'https://america-vendas.vercel.app'}/meus-anuncios`,
       metadata: {
         listingId,
         userId,
       },
     });
 
-    // Save payment record
-    await supabase
-      .from('listing_payments')
-      .insert({
-        listing_id: listingId,
-        user_id: userId,
-        stripe_session_id: session.id,
-        amount: listing.price,
-        status: 'pending',
-      });
-
-    res.json({ sessionId: session.id, url: session.url });
-  } catch (error) {
+    res.status(200).json({ sessionId: session.id });
+  } catch (error: any) {
     console.error('Error creating payment session:', error);
-    res.status(500).json({ error: 'Failed to create payment session' });
+    res.status(500).json({ error: 'Internal server error' });
   }
 } 

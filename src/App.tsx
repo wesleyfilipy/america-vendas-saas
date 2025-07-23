@@ -15,6 +15,7 @@ import UserListings from './pages/UserListings';
 import AdminDashboard from './pages/AdminDashboard';
 import ForgotPassword from './pages/ForgotPassword';
 import Payment from './pages/Payment';
+import PaymentSuccess from './pages/PaymentSuccess';
 import SupabaseTest from './components/debug/SupabaseTest';
 
 function App() {
@@ -50,6 +51,11 @@ function App() {
               <Route path="/payment/:listingId" element={
                 <ProtectedRoute>
                   <Payment />
+                </ProtectedRoute>
+              } />
+              <Route path="/payment/success" element={
+                <ProtectedRoute>
+                  <PaymentSuccess />
                 </ProtectedRoute>
               } />
               <Route path="/debug" element={<SupabaseTest />} />

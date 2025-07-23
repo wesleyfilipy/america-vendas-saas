@@ -6,6 +6,8 @@ export const config = {
   },
   stripe: {
     publishableKey: import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '',
+    premiumPriceId: import.meta.env.STRIPE_PREMIUM_PRICE_ID || '',
+    premiumAmount: 990, // $9.90 em centavos
   },
   api: {
     baseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000',
