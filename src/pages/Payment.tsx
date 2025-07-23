@@ -138,7 +138,7 @@ const Payment: React.FC = () => {
 
       console.log('Criando sessão de pagamento para plano:', plan);
       // Para planos pagos, criar sessão do Stripe
-      const response = await fetch('/functions/v1/create-payment-session', {
+      const response = await fetch(`${config.supabase.url}/functions/v1/create-payment-session`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
