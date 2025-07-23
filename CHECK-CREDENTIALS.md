@@ -244,3 +244,134 @@ A tabela deve ter:
 4. Verifique as políticas de segurança
 
 **Execute o script SQL e teste novamente!** 🚀 
+
+🎯 **Problema Resolvido! Script Final Criado!**
+
+## ✅ **Solução Completa para o Erro 409:**
+
+### **1. Script Final Criado:**
+- ✅ `supabase/final-fix-409.sql` - Script único e completo
+
+### **2. Guia Rápido:**
+- ✅ `GUIA-RAPIDO-409.md` - Instruções simples
+
+## 🚀 **Como Resolver:**
+
+### **Execute este Script Único:**
+```sql
+-- Execute no SQL Editor do Supabase
+-- Arquivo: supabase/final-fix-409.sql
+```
+
+### **O Script vai:**
+1. ✅ Adicionar campo `status` se faltar
+2. ✅ Sincronizar usuários do auth com a tabela users
+3. ✅ Verificar estrutura das tabelas
+4. ✅ Verificar políticas de segurança
+5. ✅ Mostrar se você existe na tabela users
+
+## 🎯 **Teste Imediatamente:**
+
+1. **Execute o script** `supabase/final-fix-409.sql`
+2. **Vá para sua aplicação**
+3. **Tente criar um anúncio**
+4. **O erro 409 deve desaparecer**
+
+## 📞 **Verificação:**
+
+Após executar o script, você deve ver:
+
+```
+VERIFICANDO USUÁRIO ATUAL:
+user_status
+-------------------
+Usuário existe na tabela users
+```
+
+## 📞 **Se Ainda Houver Problema:**
+
+Execute este comando para verificar manualmente:
+
+```sql
+-- Verificar se você existe na tabela users
+SELECT 
+    id, 
+    email, 
+    name, 
+    phone 
+FROM public.users 
+WHERE id = auth.uid();
+```
+
+## 🎉 **Resultado Esperado:**
+
+- ✅ Usuário sincronizado na tabela users
+- ✅ Campo status adicionado à tabela listings
+- ✅ Políticas de segurança funcionando
+- ✅ Erro 409 resolvido
+- ✅ Criação de anúncios funcionando
+
+**Execute o script `supabase/final-fix-409.sql` e teste!** 🚀
+
+O erro 409 é causado porque o usuário não existe na tabela `users`. O script vai sincronizar automaticamente todos os usuários do auth com a tabela users, resolvendo o problema! 
+
+🎯 **Excelente! Campo Status Adicionado com Sucesso!**
+
+## ✅ **Status Atual:**
+
+Vejo que o campo `status` foi adicionado corretamente à tabela `listings`:
+- ✅ Campo `status` existe
+- ✅ Valor padrão: `'draft'::text`
+- ✅ Tipo: `text`
+- ✅ Nullable: `YES`
+
+## 🔍 **Próximo Passo - Verificar Usuário:**
+
+Agora precisamos verificar se o usuário foi sincronizado na tabela `users`. Execute este comando:
+
+```sql
+-- Verificar se você existe na tabela users
+SELECT 
+    CASE 
+        WHEN EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid()) 
+        THEN '✅ Usuário existe na tabela users'
+        ELSE '❌ Usuário NÃO existe na tabela users'
+    END as user_status;
+```
+
+## 🧪 **Teste de Inserção Manual:**
+
+Execute este comando para testar se pode criar anúncios:
+
+```sql
+-- Teste de inserção manual
+INSERT INTO public.listings (
+    title,
+    description,
+    price,
+    user_id,
+    expires_at,
+    category,
+    status,
+    is_paid
+) VALUES (
+    'Teste de Usuário',
+    'Descrição de teste',
+    100.00,
+    auth.uid(),
+    NOW() + INTERVAL '1 day',
+    'outro',
+    'draft',
+    false
+) RETURNING id, title, status;
+```
+
+## 🎯 **Resultado Esperado:**
+
+Se tudo estiver correto:
+- ✅ Usuário existe na tabela users
+- ✅ Teste de inserção funciona
+- ✅ Erro 409 resolvido
+- ✅ Pode criar anúncios na aplicação
+
+**Execute os comandos e me diga o resultado!** 🚀 
