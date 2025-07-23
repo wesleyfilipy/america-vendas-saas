@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Search as SearchIcon, Filter, MapPin, DollarSign } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import ListingFilter from '../components/listing/ListingFilter';
 import toast from 'react-hot-toast';
 
 interface Listing {
@@ -20,6 +20,9 @@ interface Listing {
 const Search: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+  const [location, setLocation] = useState('');
   const [listings, setListings] = useState<Listing[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -48,12 +51,46 @@ const Search: React.FC = () => {
     }
   };
 
+  const getCategoryLabel = (category: string) => {
+    const labels: Record<string, string> = {
+      'imoveis': 'Imóveis',
+      'veiculos': 'Veículos',
+      'eletronicos': 'Eletrônicos',
+      'servicos': 'Serviços',
+      'outros': 'Outros'
+    };
+    return labels[category] || category;
+  };
+
   const filteredListings = listings.filter(listing => {
+    // Filtro por busca
     const matchesSearch = listing.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          listing.description.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    // Filtro por categoria
     const matchesCategory = !selectedCategory || listing.category === selectedCategory;
-    return matchesSearch && matchesCategory;
+    
+    // Filtro por preço mínimo
+    const matchesMinPrice = !minPrice || listing.price >= parseFloat(minPrice);
+    
+    // Filtro por preço máximo
+    const matchesMaxPrice = !maxPrice || listing.price <= parseFloat(maxPrice);
+    
+    // Filtro por localização
+    const matchesLocation = !location || 
+      (listing.city && listing.city.toLowerCase().includes(location.toLowerCase())) ||
+      (listing.state && listing.state.toLowerCase().includes(location.toLowerCase()));
+    
+    return matchesSearch && matchesCategory && matchesMinPrice && matchesMaxPrice && matchesLocation;
   });
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setSelectedCategory('');
+    setMinPrice('');
+    setMaxPrice('');
+    setLocation('');
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -81,10 +118,20 @@ const Search: React.FC = () => {
           {/* Filters Sidebar */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-lg shadow-sm p-6 sticky top-4">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                <Filter size={20} className="mr-2" />
-                Filtros
-              </h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                  <Filter size={20} className="mr-2" />
+                  Filtros
+                </h2>
+                {(selectedCategory || minPrice || maxPrice || location) && (
+                  <button
+                    onClick={clearFilters}
+                    className="text-sm text-blue-600 hover:text-blue-800"
+                  >
+                    Limpar
+                  </button>
+                )}
+              </div>
               
               {/* Category Filter */}
               <div className="mb-6">
@@ -97,10 +144,11 @@ const Search: React.FC = () => {
                   className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="">Todas as categorias</option>
-                  <option value="casa">Casas</option>
-                  <option value="carro">Carros</option>
-                  <option value="terreno">Terrenos</option>
-                  <option value="comercio">Comércios</option>
+                  <option value="imoveis">Imóveis</option>
+                  <option value="veiculos">Veículos</option>
+                  <option value="eletronicos">Eletrônicos</option>
+                  <option value="servicos">Serviços</option>
+                  <option value="outros">Outros</option>
                 </select>
               </div>
 
@@ -113,11 +161,15 @@ const Search: React.FC = () => {
                   <input
                     type="number"
                     placeholder="Preço mínimo"
+                    value={minPrice}
+                    onChange={(e) => setMinPrice(e.target.value)}
                     className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                   <input
                     type="number"
                     placeholder="Preço máximo"
+                    value={maxPrice}
+                    onChange={(e) => setMaxPrice(e.target.value)}
                     className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
@@ -131,6 +183,8 @@ const Search: React.FC = () => {
                 <input
                   type="text"
                   placeholder="Cidade, estado..."
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
                   className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -139,10 +193,15 @@ const Search: React.FC = () => {
 
           {/* Results */}
           <div className="lg:col-span-3">
-            <div className="mb-6">
+            <div className="mb-6 flex justify-between items-center">
               <p className="text-gray-600">
                 {filteredListings.length} anúncio{filteredListings.length !== 1 ? 's' : ''} encontrado{filteredListings.length !== 1 ? 's' : ''}
               </p>
+              {(selectedCategory || minPrice || maxPrice || location) && (
+                <div className="text-sm text-gray-500">
+                  Filtros ativos
+                </div>
+              )}
             </div>
 
             {isLoading ? (
@@ -152,7 +211,11 @@ const Search: React.FC = () => {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredListings.map((listing) => (
-                  <div key={listing.id} className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                  <Link 
+                    key={listing.id} 
+                    to={`/anuncio/${listing.id}`}
+                    className="block bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow"
+                  >
                     <div className="h-48 bg-gray-200">
                       {listing.images && listing.images.length > 0 ? (
                         <img
@@ -167,6 +230,14 @@ const Search: React.FC = () => {
                       )}
                     </div>
                     <div className="p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
+                          {getCategoryLabel(listing.category)}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {new Date(listing.created_at).toLocaleDateString('pt-BR')}
+                        </span>
+                      </div>
                       <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-1">
                         {listing.title}
                       </h3>
@@ -183,20 +254,28 @@ const Search: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}
 
-            {filteredListings.length === 0 && (
+            {!isLoading && filteredListings.length === 0 && (
               <div className="text-center py-12">
                 <SearchIcon size={48} className="mx-auto text-gray-400 mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">
                   Nenhum anúncio encontrado
                 </h3>
-                <p className="text-gray-500">
+                <p className="text-gray-500 mb-4">
                   Tente ajustar os filtros ou termos de busca
                 </p>
+                {(selectedCategory || minPrice || maxPrice || location) && (
+                  <button
+                    onClick={clearFilters}
+                    className="text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    Limpar todos os filtros
+                  </button>
+                )}
               </div>
             )}
           </div>
