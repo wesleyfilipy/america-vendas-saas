@@ -1,13 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { loadStripe } from '@stripe/stripe-js';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { config } from '../config/env';
 import Button from '../components/ui/Button';
 import toast from 'react-hot-toast';
-
-const stripePromise = loadStripe(config.stripe.publishableKey);
 
 interface Listing {
   id: string;
@@ -61,60 +57,13 @@ const Payment: React.FC = () => {
     }
   };
 
-  const handlePayment = async () => {
-    if (!listing || !user) return;
-
-    setIsProcessing(true);
-
-    try {
-      // Criar sessão de pagamento
-      const response = await fetch('/api/create-payment-session', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          listingId: listing.id,
-          userId: user.id,
-          amount: config.stripe.premiumAmount, // $9.90 em centavos
-          title: listing.title,
-          priceId: config.stripe.premiumPriceId
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Erro ao criar sessão de pagamento');
-      }
-
-      const { sessionId } = await response.json();
-
-      // Redirecionar para Stripe Checkout
-      const stripe = await stripePromise;
-      if (!stripe) {
-        throw new Error('Stripe não carregado');
-      }
-
-      const { error } = await stripe.redirectToCheckout({
-        sessionId,
-      });
-
-      if (error) {
-        throw error;
-      }
-
-    } catch (error: any) {
-      console.error('Payment error:', error);
-      toast.error('Erro ao processar pagamento. Tente novamente.');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleSkipPayment = async () => {
+  const handlePublishFree = async () => {
     if (!listing) return;
 
+    setIsProcessing(true);
+    
     try {
-      // Atualizar anúncio para status grátis (1 dia)
+      // Calcular data de expiração (1 dia grátis)
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 1);
 
@@ -125,7 +74,8 @@ const Payment: React.FC = () => {
           expires_at: expiresAt.toISOString(),
           is_paid: false
         })
-        .eq('id', listing.id);
+        .eq('id', listing.id)
+        .eq('user_id', user?.id);
 
       if (error) {
         throw error;
@@ -134,9 +84,15 @@ const Payment: React.FC = () => {
       toast.success('Anúncio publicado gratuitamente por 1 dia!');
       navigate('/meus-anuncios');
     } catch (error) {
-      console.error('Error updating listing:', error);
-      toast.error('Erro ao atualizar anúncio');
+      console.error('Error publishing listing:', error);
+      toast.error('Erro ao publicar anúncio');
+    } finally {
+      setIsProcessing(false);
     }
+  };
+
+  const handlePublishPremium = async () => {
+    toast.error('Funcionalidade de pagamento premium em desenvolvimento. Use a opção gratuita por enquanto.');
   };
 
   if (isLoading) {
@@ -177,117 +133,111 @@ const Payment: React.FC = () => {
               </div>
               
               <div>
+                <span className="font-medium text-gray-700">Preço:</span>
+                <p className="text-gray-900">R$ {listing.price.toLocaleString()}</p>
+              </div>
+              
+              <div>
                 <span className="font-medium text-gray-700">Categoria:</span>
-                <p className="text-gray-900 capitalize">{listing.category}</p>
+                <p className="text-gray-900">{listing.category}</p>
               </div>
               
               <div>
                 <span className="font-medium text-gray-700">Localização:</span>
-                <p className="text-gray-900">{listing.city}, {listing.state}</p>
-              </div>
-              
-              <div>
-                <span className="font-medium text-gray-700">Preço:</span>
-                <p className="text-gray-900">R$ {listing.price.toLocaleString('pt-BR')}</p>
+                <p className="text-gray-900">
+                  {listing.city && listing.state ? `${listing.city}, ${listing.state}` : 'Não informada'}
+                </p>
               </div>
             </div>
           </div>
 
-          {/* Opções de Pagamento */}
-          <div className="space-y-6">
-            <div className="border-t pt-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Escolha sua opção:</h3>
+          {/* Opções de Publicação */}
+          <div className="space-y-4">
+            {/* Opção Gratuita */}
+            <div className="border border-gray-200 rounded-lg p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Publicação Gratuita</h3>
+                  <p className="text-gray-600">Ideal para testar a plataforma</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-2xl font-bold text-green-600">Grátis</p>
+                  <p className="text-sm text-gray-500">1 dia de exposição</p>
+                </div>
+              </div>
               
-              {/* Opção Premium */}
-              <div className="border-2 border-blue-500 rounded-lg p-6 mb-4">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h4 className="text-xl font-semibold text-gray-900">Publicação Premium</h4>
-                    <p className="text-gray-600">Exposição ilimitada</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-bold text-blue-600">US$ 9,90</p>
-                    <p className="text-sm text-gray-500">Pagamento único</p>
-                  </div>
-                </div>
-                
-                <ul className="space-y-2 mb-4">
-                  <li className="flex items-center text-sm text-gray-700">
-                    <span className="text-green-500 mr-2">✓</span>
-                    Exposição ilimitada
-                  </li>
-                  <li className="flex items-center text-sm text-gray-700">
-                    <span className="text-green-500 mr-2">✓</span>
-                    Destaque nos resultados
-                  </li>
-                  <li className="flex items-center text-sm text-gray-700">
-                    <span className="text-green-500 mr-2">✓</span>
-                    Estatísticas detalhadas
-                  </li>
-                  <li className="flex items-center text-sm text-gray-700">
-                    <span className="text-green-500 mr-2">✓</span>
-                    Suporte prioritário
-                  </li>
-                </ul>
-                
-                <Button
-                  onClick={handlePayment}
-                  disabled={isProcessing}
-                  className="w-full bg-blue-600 hover:bg-blue-700"
-                >
-                  {isProcessing ? 'Processando...' : 'Pagar US$ 9,90'}
-                </Button>
-              </div>
+              <ul className="space-y-2 mb-4">
+                <li className="flex items-center text-sm text-gray-600">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                  Publicação imediata
+                </li>
+                <li className="flex items-center text-sm text-gray-600">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                  Visibilidade básica
+                </li>
+                <li className="flex items-center text-sm text-gray-600">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                  Suporte por email
+                </li>
+              </ul>
+              
+              <Button
+                onClick={handlePublishFree}
+                disabled={isProcessing}
+                className="w-full bg-green-600 hover:bg-green-700"
+              >
+                {isProcessing ? 'Publicando...' : 'Publicar Gratuitamente'}
+              </Button>
+            </div>
 
-              {/* Opção Grátis */}
-              <div className="border-2 border-gray-300 rounded-lg p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h4 className="text-xl font-semibold text-gray-900">Publicação Grátis</h4>
-                    <p className="text-gray-600">Exposição por 1 dia</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-bold text-gray-600">Grátis</p>
-                    <p className="text-sm text-gray-500">1 dia de exposição</p>
-                  </div>
+            {/* Opção Premium */}
+            <div className="border border-gray-200 rounded-lg p-6 opacity-50">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Publicação Premium</h3>
+                  <p className="text-gray-600">Máxima exposição e recursos avançados</p>
                 </div>
-                
-                <ul className="space-y-2 mb-4">
-                  <li className="flex items-center text-sm text-gray-700">
-                    <span className="text-green-500 mr-2">✓</span>
-                    Exposição por 1 dia
-                  </li>
-                  <li className="flex items-center text-sm text-gray-700">
-                    <span className="text-gray-400 mr-2">✗</span>
-                    Sem destaque
-                  </li>
-                  <li className="flex items-center text-sm text-gray-700">
-                    <span className="text-gray-400 mr-2">✗</span>
-                    Sem estatísticas
-                  </li>
-                  <li className="flex items-center text-sm text-gray-700">
-                    <span className="text-gray-400 mr-2">✗</span>
-                    Suporte básico
-                  </li>
-                </ul>
-                
-                <Button
-                  onClick={handleSkipPayment}
-                  variant="outline"
-                  className="w-full"
-                >
-                  Publicar Grátis
-                </Button>
+                <div className="text-right">
+                  <p className="text-2xl font-bold text-blue-600">R$ 9,90</p>
+                  <p className="text-sm text-gray-500">30 dias de exposição</p>
+                </div>
               </div>
+              
+              <ul className="space-y-2 mb-4">
+                <li className="flex items-center text-sm text-gray-600">
+                  <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                  Destaque na busca
+                </li>
+                <li className="flex items-center text-sm text-gray-600">
+                  <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                  Estatísticas detalhadas
+                </li>
+                <li className="flex items-center text-sm text-gray-600">
+                  <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                  Suporte prioritário
+                </li>
+                <li className="flex items-center text-sm text-gray-600">
+                  <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                  Renovação automática
+                </li>
+              </ul>
+              
+              <Button
+                onClick={handlePublishPremium}
+                disabled={true}
+                className="w-full bg-gray-400 cursor-not-allowed"
+              >
+                Em Breve
+              </Button>
             </div>
           </div>
 
-          {/* Informações de Segurança */}
-          <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-            <h4 className="font-medium text-green-800 mb-2">Pagamento Seguro</h4>
-            <p className="text-sm text-green-700">
-              Seus dados de pagamento são protegidos com criptografia SSL. 
-              Processamos pagamentos através do Stripe, líder mundial em segurança de pagamentos.
+          {/* Informações Adicionais */}
+          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+            <h4 className="font-medium text-blue-900 mb-2">💡 Dica</h4>
+            <p className="text-sm text-blue-800">
+              Comece com a publicação gratuita para testar a plataforma. 
+              Você pode sempre fazer upgrade para premium depois!
             </p>
           </div>
         </div>

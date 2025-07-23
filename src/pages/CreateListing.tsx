@@ -18,7 +18,6 @@ interface CreateListingFormData {
   number: string;
   zipCode: string;
   contactInfo: string;
-  paymentType: 'free' | 'premium';
 }
 
 const CreateListing: React.FC = () => {
@@ -36,7 +35,7 @@ const CreateListing: React.FC = () => {
     setValue
   } = useForm<CreateListingFormData>();
 
-  const paymentType = watch('paymentType', 'free');
+
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
@@ -99,24 +98,15 @@ const CreateListing: React.FC = () => {
       console.log('User ID:', user.id);
       console.log('Form data:', data);
 
-      // Calcular data de expiração
-      const expiresAt = new Date();
-      if (data.paymentType === 'free') {
-        expiresAt.setDate(expiresAt.getDate() + 1); // 1 dia grátis
-      } else {
-        expiresAt.setFullYear(expiresAt.getFullYear() + 10); // 10 anos para premium
-      }
-
-      // Preparar dados do anúncio (apenas campos obrigatórios primeiro)
+      // Preparar dados do anúncio (sempre como rascunho primeiro)
       const listingData = {
         title: data.title.trim(),
         description: data.description.trim(),
         price: parseFloat(data.price.toString()),
         category: data.category,
         user_id: user.id,
-        expires_at: expiresAt.toISOString(),
-        status: data.paymentType === 'free' ? 'published' : 'pending_payment',
-        is_paid: data.paymentType === 'premium',
+        status: 'draft', // Sempre começar como rascunho
+        is_paid: false,
         images: [] // Inicializar array vazio
       };
 
@@ -201,12 +191,8 @@ const CreateListing: React.FC = () => {
 
       toast.success('Anúncio criado com sucesso!');
 
-      // Redirecionar baseado no tipo de pagamento
-      if (data.paymentType === 'premium') {
-        navigate(`/payment/${createdListing.id}`);
-      } else {
-        navigate('/meus-anuncios');
-      }
+      // Sempre redirecionar para a página de pagamento para escolher a opção
+      navigate(`/payment/${createdListing.id}`);
 
     } catch (error: any) {
       console.error('Error creating listing:', error);
@@ -422,52 +408,7 @@ const CreateListing: React.FC = () => {
               )}
             </div>
 
-            {/* Tipo de Publicação */}
-            <div className="border-t pt-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Tipo de Publicação</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div
-                  className={`border-2 rounded-lg p-4 cursor-pointer transition-colors ${
-                    paymentType === 'free' ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
-                  }`}
-                  onClick={() => setValue('paymentType', 'free')}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium text-gray-900">Publicação Grátis</h4>
-                      <p className="text-sm text-gray-600">1 dia de exposição</p>
-                    </div>
-                    <input
-                      type="radio"
-                      {...register('paymentType')}
-                      value="free"
-                      className="text-blue-600"
-                    />
-                  </div>
-                </div>
 
-                <div
-                  className={`border-2 rounded-lg p-4 cursor-pointer transition-colors ${
-                    paymentType === 'premium' ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
-                  }`}
-                  onClick={() => setValue('paymentType', 'premium')}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium text-gray-900">Publicação Premium</h4>
-                      <p className="text-sm text-gray-600">US$ 9,90 - Exposição ilimitada</p>
-                    </div>
-                    <input
-                      type="radio"
-                      {...register('paymentType')}
-                      value="premium"
-                      className="text-blue-600"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
 
             {/* Botão de Envio */}
             <div className="flex justify-end">
