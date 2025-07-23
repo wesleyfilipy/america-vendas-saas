@@ -32,7 +32,7 @@ supabase functions deploy stripe-webhook
 ## Configurar Variáveis de Ambiente
 
 ```bash
-supabase secrets set STRIPE_SECRET_KEY=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
+supabase secrets set STRIPE_SECRET_KEY=your_stripe_secret_key_here
 ```
 
 ## Verificar Status

@@ -5,8 +5,8 @@ export const config = {
     anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
   },
   stripe: {
-    publishableKey: import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 'pk_live_51O85t5BICvnzUZeSk33XcOh05q5lEXqbfjtUqExXTMqragrwfWlbaURYjco010dbTQHTGqTUtKjDSzeZeEuqpPle007JfyJA3R',
-    secretKey: import.meta.env.VITE_STRIPE_SECRET_KEY || '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',
+    publishableKey: import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 'your_publishable_key_here',
+    secretKey: import.meta.env.VITE_STRIPE_SECRET_KEY || 'your_secret_key_here',
     priceIds: {
       basic: import.meta.env.VITE_STRIPE_BASIC_PRICE_ID || 'price_1RnoroBICvnzUZeSB9asGpZJ',
       premium: import.meta.env.VITE_STRIPE_PREMIUM_PRICE_ID || '',
