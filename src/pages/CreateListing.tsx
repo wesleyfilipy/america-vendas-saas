@@ -105,7 +105,7 @@ const CreateListing: React.FC = () => {
         price: parseFloat(data.price.toString()),
         category: data.category,
         user_id: user.id,
-        status: 'draft', // Sempre começar como rascunho
+        status: 'published', // Publicar diretamente
         is_paid: false,
         images: [], // Inicializar array vazio
         expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 dias padrão
