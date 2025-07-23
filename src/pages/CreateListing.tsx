@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
-import { Upload, DollarSign, Calendar, MapPin, Home, Car, Building } from 'lucide-react';
+import { Upload, DollarSign } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import Button from '../components/ui/Button';
