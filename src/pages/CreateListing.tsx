@@ -55,24 +55,33 @@ const CreateListing: React.FC = () => {
     for (let i = 0; i < images.length; i++) {
       const file = images[i];
       const fileExt = file.name.split('.').pop();
-      const fileName = `${listingId}/${Date.now()}-${i}.${fileExt}`;
+      const fileName = `${user?.id}/${listingId}/${Date.now()}-${i}.${fileExt}`;
       
-      const { data, error } = await supabase.storage
-        .from('images')
-        .upload(fileName, file);
+      try {
+        const { data, error } = await supabase.storage
+          .from('images')
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: false
+          });
 
-      if (error) {
+        if (error) {
+          console.error('Error uploading image:', error);
+          toast.error(`Erro ao fazer upload da imagem ${i + 1}`);
+          continue;
+        }
+
+        const { data: urlData } = supabase.storage
+          .from('images')
+          .getPublicUrl(fileName);
+
+        uploadedUrls.push(urlData.publicUrl);
+        setUploadProgress(((i + 1) / images.length) * 100);
+      } catch (error) {
         console.error('Error uploading image:', error);
-        toast.error('Erro ao fazer upload da imagem');
+        toast.error(`Erro ao fazer upload da imagem ${i + 1}`);
         continue;
       }
-
-      const { data: urlData } = supabase.storage
-        .from('images')
-        .getPublicUrl(fileName);
-
-      uploadedUrls.push(urlData.publicUrl);
-      setUploadProgress(((i + 1) / images.length) * 100);
     }
 
     return uploadedUrls;
