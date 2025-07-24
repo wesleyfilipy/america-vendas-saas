@@ -29,15 +29,19 @@ const Login: React.FC = () => {
     setIsLoading(true);
     
     try {
-      console.log('Login attempt:', data);
+      console.log('Login attempt with:', { email: data.email, supabaseUrl: supabase.supabaseUrl });
       
       // Real Supabase authentication
       const { data: authData, error } = await supabase.auth.signInWithPassword({
         email: data.email,
         password: data.password,
+      }).catch(e => {
+        console.error('Supabase auth error:', e);
+        throw e;
       });
 
       if (error) {
+        console.error('Login error:', error);
         console.error('Login error:', error);
         setError('root', {
           type: 'manual',
