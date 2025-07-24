@@ -21,6 +21,34 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
+    detectSessionInUrl: true,
+    storageKey: 'supabase.auth.token'
+  },
+  db: {
+    schema: 'public'
+  },
+  global: {
+    headers: {
+      'X-Client-Info': 'america-vendas-saas@1.0.0'
+    }
+  }
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+    storageKey: 'supabase.auth.token',
+  },
+  db: {
+    schema: 'public'
+  },
+  global: {
+    headers: {
+      'X-Client-Info': 'america-vendas-saas@1.0.0'
+    }
+  }
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
     detectSessionInUrl: true
   },
   auth: {
