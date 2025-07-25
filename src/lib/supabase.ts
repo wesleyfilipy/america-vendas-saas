@@ -24,56 +24,40 @@ console.log('Initializing Supabase client with:', {
   hasKey: !!supabaseKey
 });
 
-// Initialize the Supabase client
+// Initialize the Supabase client with proper DNS and CORS configuration
 export const supabase = createClient(finalSupabaseUrl, supabaseKey, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
-    storageKey: 'supabase.auth.token',
-    flowType: 'pkce'
-  },
-  db: {
-    schema: 'public'
-  },
-  global: {
-    headers: {
-      'X-Client-Info': 'america-vendas-saas@1.0.0'
-    }
-  }
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true,
-    storageKey: 'supabase.auth.token',
-  },
-  db: {
-    schema: 'public'
-  },
-  global: {
-    headers: {
-      'X-Client-Info': 'america-vendas-saas@1.0.0'
-    }
-  }
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true
-  },
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
     flowType: 'pkce',
-    debug: true,
+    debug: process.env.NODE_ENV === 'development',
     storage: window.localStorage,
-    storageKey: 'supabase.auth.token',
+    storageKey: 'supabase.auth.token'
   },
+  db: {
+    schema: 'public'
+  },
+  global: {
+    headers: {
+      'X-Client-Info': 'america-vendas-saas@1.0.0',
+      'X-Supabase-Auth-Flow': 'pkce'
+    }
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10
+    }
+  }
 });
 
-// Error handling utility
+// Error handling and connection utilities
 export const handleSupabaseError = (error: any) => {
   console.error('Supabase error:', error);
+  
+  if (error?.message?.includes('ERR_NAME_NOT_RESOLVED')) {
+    return 'Erro de conexão com o servidor. Por favor, verifique sua conexão com a internet e tente novamente.';
+  }
   
   if (error?.message) {
     return error.message;
@@ -84,6 +68,28 @@ export const handleSupabaseError = (error: any) => {
   }
   
   return 'Ocorreu um erro inesperado. Tente novamente.';
+};
+
+// Test connection utility
+export const testSupabaseConnection = async () => {
+  try {
+    const response = await fetch(`${finalSupabaseUrl}/auth/v1/health`, {
+      method: 'GET',
+      headers: {
+        'apikey': supabaseKey,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error('Falha na conexão com o Supabase');
+    }
+    
+    return { ok: true };
+  } catch (error) {
+    console.error('Connection test failed:', error);
+    return { ok: false, error };
+  }
 };
 
 // Database types

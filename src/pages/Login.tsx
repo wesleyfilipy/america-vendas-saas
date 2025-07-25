@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff, Mail, Lock, ArrowLeft } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase, testSupabaseConnection } from '../lib/supabase';
 import Button from '../components/ui/Button';
 import toast from 'react-hot-toast';
 
@@ -29,30 +29,43 @@ const Login: React.FC = () => {
     setIsLoading(true);
     
     try {
+      // Test connection first
+      const connectionTest = await testSupabaseConnection();
+      if (!connectionTest.ok) {
+        throw new Error('Não foi possível conectar ao servidor. Verifique sua conexão com a internet.');
+      }
+      
       // Debug information
       console.log('Login attempt with:', { 
         email: data.email,
-        supabaseUrl: supabase.supabaseUrl,
         hasSupabaseClient: !!supabase,
         hasAuthModule: !!supabase.auth
       });
       
-      // Test connection before authentication
-      try {
-        const { data: testData } = await supabase.from('health_check').select('*').limit(1);
-        console.log('Supabase connection test:', { success: true, testData });
-      } catch (testError) {
-        console.error('Supabase connection test failed:', testError);
-      }
+      // Real Supabase authentication with retry
+      const maxRetries = 2;
+      let attempt = 0;
+      let authData;
+      let error;
       
-      // Real Supabase authentication
-      const { data: authData, error } = await supabase.auth.signInWithPassword({
-        email: data.email,
-        password: data.password,
-      }).catch(e => {
-        console.error('Supabase auth error:', e);
-        throw e;
-      });
+      while (attempt < maxRetries) {
+        try {
+          const result = await supabase.auth.signInWithPassword({
+            email: data.email,
+            password: data.password,
+          });
+          authData = result.data;
+          error = result.error;
+          break;
+        } catch (e) {
+          console.error(`Authentication attempt ${attempt + 1} failed:`, e);
+          attempt++;
+          if (attempt === maxRetries) {
+            throw e;
+          }
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s before retry
+        }
+      }
 
       if (error) {
         console.error('Login error:', error);
@@ -65,7 +78,7 @@ const Login: React.FC = () => {
         return;
       }
 
-      if (authData.user) {
+      if (authData?.user) {
         console.log('Login successful:', authData.user);
         toast.success('Login realizado com sucesso!');
         navigate(from, { replace: true });
