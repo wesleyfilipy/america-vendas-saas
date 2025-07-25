@@ -16,13 +16,22 @@ if (!supabaseUrl || !supabaseKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
+// Ensure HTTPS
+const finalSupabaseUrl = supabaseUrl.startsWith('http') ? supabaseUrl : `https://${supabaseUrl}`;
+
+console.log('Initializing Supabase client with:', {
+  url: finalSupabaseUrl,
+  hasKey: !!supabaseKey
+});
+
 // Initialize the Supabase client
-export const supabase = createClient(supabaseUrl, supabaseKey, {
+export const supabase = createClient(finalSupabaseUrl, supabaseKey, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
-    storageKey: 'supabase.auth.token'
+    storageKey: 'supabase.auth.token',
+    flowType: 'pkce'
   },
   db: {
     schema: 'public'

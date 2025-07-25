@@ -29,7 +29,21 @@ const Login: React.FC = () => {
     setIsLoading(true);
     
     try {
-      console.log('Login attempt with:', { email: data.email, supabaseUrl: supabase.supabaseUrl });
+      // Debug information
+      console.log('Login attempt with:', { 
+        email: data.email,
+        supabaseUrl: supabase.supabaseUrl,
+        hasSupabaseClient: !!supabase,
+        hasAuthModule: !!supabase.auth
+      });
+      
+      // Test connection before authentication
+      try {
+        const { data: testData } = await supabase.from('health_check').select('*').limit(1);
+        console.log('Supabase connection test:', { success: true, testData });
+      } catch (testError) {
+        console.error('Supabase connection test failed:', testError);
+      }
       
       // Real Supabase authentication
       const { data: authData, error } = await supabase.auth.signInWithPassword({
