@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "include": ["/*"],
+  "exclude": [
+    "/assets/*",
+    "/_headers",
+    "/_redirects",
+    "/_worker.js",
+    "/_routes.json"
+  ],
+  "routes": [
+    {
+      "src": "/assets/*",
+      "dest": "/assets/*"
+    },
+    {
+      "src": "/*",
+      "dest": "/index.html"
+    }
+  ]
+} 

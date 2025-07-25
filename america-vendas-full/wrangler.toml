@@ -1,0 +1,16 @@
+name = "america-vendas"
+compatibility_date = "2024-01-15"
+
+[env.production]
+name = "america-vendas"
+
+[env.production.vars]
+VITE_SUPABASE_URL = "https://whsvonphvsfopwjteqju.supabase.co"
+VITE_APP_URL = "https://america-vendas.pages.dev"
+
+[[env.production.routes]]
+pattern = "/*"
+script_name = "america-vendas"
+
+[env.production.site]
+bucket = "./dist" 
